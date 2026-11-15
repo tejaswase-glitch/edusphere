@@ -1,0 +1,37 @@
+PASS  Homepage: hero, 4 subject cards, banner, 4 feature cards, footer
+PASS  1. Admin login works; wrong portal is refused
+PASS  Admin dashboard shows statistics
+PASS  4/6. Pending, rejected and suspended students are denied
+PASS  3. Student registration creates a pending profile with matching fields
+PASS  Registered student cannot enter while pending
+PASS  5. Admin sees the new registration; approve + reject work
+PASS  8. Admin creates a teacher; edit + suspend + activate
+PASS  Admin: subjects and courses management
+PASS  Teacher account created by Admin can sign in only after status check (Teacher login)
+PASS  Teacher: manage own course
+PASS  9. Teacher uploads study materials (published + draft)
+PASS  12. Teacher publishes a recorded lecture (YouTube Unlisted)
+PASS  13. Teacher creates a Google Meet class; non-Meet link refused
+PASS  Public homepage exposes no private links (video id / Meet link)
+PASS  10. Teacher 2 cannot see Delete on Teacher 1 content; owner can delete own
+PASS  Direct API deletion of another teacher's item is refused (mock RLS emulation)
+PASS  11. Admin deletes any teacher's lecture and material
+PASS  Student dashboard (screenshot layout): sidebar items, banner, stats, sections
+PASS  6. Student sees published content; drafts hidden
+PASS  12b. Student watches lecture inside EduSphere and progress is tracked
+PASS  15. Student sees class, updates after reschedule, and cancelled class has no Join button
+PASS  Student profile edit
+PASS  7. Session persists after browser restart
+PASS  7b. Status is re-checked: suspended while signed in -> signed out
+PASS  19. Logout leaves one homepage, no duplicate login sections, dashboard hidden
+PASS  16. Recorder: consent gate, start/stop, timer, status, download (capture APIs stubbed)
+PASS  17. Homepage has no horizontal overflow @ mobile 390
+PASS  17. Homepage has no horizontal overflow @ Galaxy 360
+PASS  17. Homepage has no horizontal overflow @ tablet 768
+PASS  18. All dashboards: no horizontal overflow, working sidebar @ mobile 390
+PASS  18. All dashboards: no horizontal overflow, working sidebar @ tablet 768
+PASS  Teacher password-setup / reset link opens the set-password dialog and saves the password
+PASS  PWA: manifest linked, icons load, service worker registers and activates
+PASS  Misc: no service_role key or secrets in website files
+
+35 passed, 0 failed
