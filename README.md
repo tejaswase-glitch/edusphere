@@ -1,49 +1,23 @@
-# EduSphere — client-ready MVP foundation
+# EduSphere
 
-This project preserves the supplied EduSphere homepage design and adds a Supabase-backed portal foundation.
+Static website (GitHub Pages) + your existing Supabase project. No build step.
 
-## Included
-- Original homepage look and responsive layout.
-- Supabase email/password authentication.
-- Student self-registration with `pending` approval status.
-- Admin approval/rejection of student accounts.
-- Admin/teacher course creation.
-- Teacher/admin upload of private PDF/document learning materials.
-- Student access to published materials using short-lived signed URLs.
-- Teacher/admin scheduling of Google Meet or Zoom links.
-- Approved students can view upcoming classes and open the meeting link.
-- Supabase RLS policies and private Storage bucket.
+- **Public homepage** - redesigned (lavender/blue-purple), 4 subject cards, registration banner, safe lecture previews.
+- **Student dashboard** - navy sidebar, welcome banner, learning stats, Continue Learning, My Courses, Upcoming Live Class, Recent Activity.
+- **Admin** - statistics, student approval (approve / reject / suspend), teacher accounts (via Edge Function), courses + subjects, all materials/lectures/classes, audit log.
+- **Teacher** - own courses, material upload, YouTube Unlisted lectures, Google Meet classes (edit / reschedule / cancel), screen + voice recorder.
+- **Security** - Supabase Auth sessions, status re-check, RLS + Storage policies, ownership-based delete, audit log.
 
-## Before testing
-1. Create a Supabase project.
-2. In Supabase SQL Editor, run all of `supabase-schema.sql`.
-3. In Supabase Project Settings → API, copy the Project URL and anon/publishable key.
-4. Paste those two public values into `config.js`. Never paste the `service_role` key into browser code.
-5. In Supabase Authentication → URL Configuration, set the Site URL to your eventual Cloudflare Pages URL and add local/test URLs to Redirect URLs.
-6. Turn off public signups only if the client wants invite-only onboarding. For the included student self-registration flow, keep signups enabled and require email confirmation according to the client's policy.
-7. Create the first admin account through the website's student registration flow (or Supabase Auth). Confirm the email if confirmation is enabled. In Supabase → Authentication → Users, copy that user's UUID. Run the final commented SQL statement in `supabase-schema.sql`, replacing `AUTH-USER-UUID`, to set that account to `admin` and `approved`.
-8. Create teacher accounts in Supabase Authentication → Users (invite/create user), then set their profile role and status from the SQL Editor:
-   `update public.profiles set role='teacher', status='approved' where id='TEACHER-AUTH-UUID';`
-9. Deploy the folder to Cloudflare Pages (Direct Upload or connect the GitHub repository). Use the project root as the build output; no build command is required.
+## Folder map
+| Path | Purpose |
+|---|---|
+| `index.html`, `css/`, `js/`, `assets/` | the website |
+| `config.js` | **the only file you edit** (anon key etc.) |
+| `supabase/migrations/001_upgrade.sql`, `002_complete_platform.sql` | incremental SQL, run in this order |
+| `supabase/functions/admin-users/index.ts` | Edge Function: secure teacher creation |
+| `docs/` | GitHub Pages + Supabase guides, manuals, Android/PWA guide, limits and free-tier notes, security notes |
+| `BUG_FIX_REPORT.md`, `TESTING_REPORT.md`, `CHANGELOG.md` | what was found/fixed and what was tested (read first) |
+| `tests/` | mock-backend UI tests (`node tests/e2e.mjs`) + screenshots |
+| `backup/` | untouched copies of both previous projects; `supabase-schema.original.sql` |
 
-## Local preview
-Because browser modules and auth redirects work best over HTTP, run a local static server from this folder, for example:
-`python -m http.server 8000`
-Then open `http://localhost:8000`.
-
-## Security notes
-- The browser uses only the Supabase anon/publishable key. It is designed to be public.
-- Never expose a Supabase `service_role` key, database password, or Cloudflare API token in HTML/JS.
-- Admin and teacher roles are assigned manually by a trusted project owner in Supabase; public registration always creates a pending student.
-- Supabase Auth must have email confirmation / SMTP configured appropriately for production. The default Supabase email service is rate-limited and is not a reliable client production mail service.
-- Configure a custom SMTP provider before launch if reliable account emails/password resets are required.
-- Use a custom domain and configure Supabase Auth Site URL / redirect allow-list before client handover.
-- This is an MVP learning portal. It does not yet include native video hosting, payments, attendance, gradebook, messaging, or quiz authoring.
-
-## Operational checklist before handover
-- Test with separate admin, teacher, pending student, approved student and rejected student accounts.
-- Verify pending/rejected students cannot access class links or files.
-- Verify a student cannot upload files, create classes, approve accounts, or change their role.
-- Verify a teacher cannot approve accounts or change user roles.
-- Verify storage bucket remains private.
-- Configure backups, custom SMTP, domain, privacy policy, terms, and client-owned billing/contact details.
+Start with `BUG_FIX_REPORT.md` and `TESTING_REPORT.md`, then `docs/SUPABASE-SETUP.md` and `docs/GITHUB-PAGES-DEPLOYMENT.md`. Live site: https://tejaswase-glitch.github.io/edusphere/
