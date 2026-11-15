@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 400" role="img" aria-label="Graduation cap on books beside a laptop playing a lecture">
+<defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#cfd8ff"/><stop offset="1" stop-color="#e6dcff"/></linearGradient>
+<linearGradient id="scr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4b63ff"/><stop offset="1" stop-color="#7c4dff"/></linearGradient>
+<linearGradient id="cap" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1e2a6b"/><stop offset="1" stop-color="#121a4a"/></linearGradient></defs>
+<ellipse cx="270" cy="345" rx="240" ry="38" fill="url(#g1)"/>
+<path d="M60 150c20-70 120-90 190-60s150-20 200 40-10 150-90 170-210 20-260-30S40 220 60 150Z" fill="#dfe6ff" opacity=".55"/>
+<!-- books -->
+<g><rect x="95" y="285" width="190" height="34" rx="6" fill="#f4b73f"/><rect x="95" y="285" width="190" height="9" rx="4" fill="#ffd77a"/><rect x="105" y="252" width="170" height="34" rx="6" fill="#4f6bff"/><rect x="105" y="252" width="170" height="9" rx="4" fill="#8ea0ff"/><rect x="115" y="220" width="150" height="33" rx="6" fill="#e8ecff"/><rect x="115" y="220" width="150" height="8" rx="4" fill="#fff"/><rect x="125" y="190" width="130" height="31" rx="6" fill="#7a4dff"/><rect x="125" y="190" width="130" height="8" rx="4" fill="#a98bff"/></g>
+<!-- cap -->
+<g><path d="M190 120 90 150l100 32 100-32-100-30Z" fill="url(#cap)"/><path d="M135 165v34c0 12 25 22 55 22s55-10 55-22v-34l-55 18-55-18Z" fill="#162058"/><path d="M190 120 90 150l100 32 100-32-100-30Z" fill="none" stroke="#2f3f9e" stroke-width="2"/><path d="M290 150v48" stroke="#f4b73f" stroke-width="4" stroke-linecap="round"/><path d="M283 198h14l4 26h-22l4-26Z" fill="#f4b73f"/></g>
+<!-- plant -->
+<g><path d="M78 300c-6-36 6-60 28-76-4 26 4 52-8 76Z" fill="#3fae6a"/><path d="M96 300c10-30 36-44 56-44-8 24-26 38-56 44Z" fill="#59c785"/><rect x="72" y="296" width="44" height="30" rx="8" fill="#5b7bff"/></g>
+<!-- laptop -->
+<g><path d="M310 120l130-28 22 188-130 30-22-190Z" fill="#cfd6f6"/><path d="M318 128l114-24 18 168-114 26-18-170Z" fill="url(#scr)"/><circle cx="388" cy="196" r="34" fill="#fff" opacity=".95"/><path d="M378 178v36l30-18-30-18Z" fill="#4b63ff"/><path d="M296 298l130 6 70-24-130-28-70 46Z" fill="#aab4e8"/><path d="M296 298l130 6v12l-130-6v-12Z" fill="#8791d1"/></g>
+<circle cx="470" cy="70" r="7" fill="#c9baff"/><circle cx="52" cy="110" r="10" fill="#d4dcff"/><circle cx="430" cy="340" r="6" fill="#ffd77a"/>
+</svg>
