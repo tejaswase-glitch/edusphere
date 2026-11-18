@@ -331,3 +331,29 @@ video.preview{width:100%;max-height:420px;background:#000;border-radius:12px}
  .jitsi-stage:fullscreen,.jitsi-stage.jitsi-stage-expanded{padding:8px!important}
  .jitsi-stage:fullscreen .jitsi-frame,.jitsi-stage.jitsi-stage-expanded .jitsi-frame{height:calc(100vh - 120px)!important;height:calc(100dvh - 120px)!important;min-height:220px!important}
 }
+
+
+/* EduSphere live class: YouTube-inspired responsive player shell */
+.jitsi-stage{background:#101014!important;color:#fff!important;padding:14px!important;border-radius:18px!important}
+.jitsi-stage-head{padding:4px 4px 12px!important}
+.jitsi-stage-head b{font-size:18px!important;letter-spacing:-.2px}
+.jitsi-player-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 4px 10px;flex-wrap:wrap}
+.jitsi-live-pill{display:inline-flex;align-items:center;gap:7px;background:#351b22;color:#ffb8bd;border:1px solid #70323c;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:800;letter-spacing:.7px}
+.jitsi-live-pill i{width:8px;height:8px;border-radius:50%;background:#ff4d5a;box-shadow:0 0 0 4px #ff4d5a26;animation:ed-live-pulse 1.4s infinite}
+@keyframes ed-live-pulse{50%{opacity:.45}}
+.jitsi-player-note{font-size:12px;color:#b9b9c6}
+.jitsi-frame{height:auto!important;aspect-ratio:16/9;min-height:300px!important;max-height:calc(100dvh - 190px);border-radius:12px!important;background:#050505}
+.jitsi-player-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 4px 2px;color:#b9b9c6;font-size:12px;flex-wrap:wrap}
+.jitsi-player-foot-actions{display:flex;gap:8px;flex-wrap:wrap}
+.jitsi-stage:fullscreen .jitsi-frame,.jitsi-stage.jitsi-stage-expanded .jitsi-frame{height:calc(100dvh - 160px)!important;aspect-ratio:auto;max-height:none}
+@media(max-width:600px){
+ .jitsi-stage{padding:9px!important}
+ .jitsi-stage-head{align-items:flex-start!important}
+ .jitsi-stage-head .actions{width:100%}
+ .jitsi-stage-head .actions .btn{flex:1;min-height:40px}
+ .jitsi-frame{aspect-ratio:16/9;min-height:230px!important;max-height:none;height:auto!important}
+ .jitsi-player-foot{align-items:flex-start}
+ .jitsi-player-foot-actions{width:100%}
+ .jitsi-player-foot-actions .btn{flex:1}
+ .jitsi-stage:fullscreen .jitsi-frame,.jitsi-stage.jitsi-stage-expanded .jitsi-frame{height:calc(100dvh - 174px)!important;min-height:220px!important}
+}
