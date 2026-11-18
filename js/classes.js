@@ -36,7 +36,11 @@ export async function classesView(el) {
     (staff ? '<button class="btn btn-soft btn-sm" type="button" data-act="recordHelp">Teacher recording guide</button>' : '') +
     '<button class="btn btn-danger btn-sm" type="button" data-act="leaveJitsi">Leave class</button></div></div>' +
     (staff ? '<p class="hint jitsi-hint">Teacher only: recording is not automatic. Use your device screen recorder; Android may not capture all meeting audio. Students do not see these recording instructions.</p>' : '') +
-    '<div id="jitsiFrame" class="jitsi-frame"></div></div>' +
+    '<div class="jitsi-player-meta"><span class="jitsi-live-pill"><i></i> LIVE CLASS</span><span class="jitsi-player-note">You are in the EduSphere classroom</span></div>' +
+    '<div id="jitsiFrame" class="jitsi-frame"></div>' +
+    '<div class="jitsi-player-foot"><span>Keep this page open while attending.</span><span class="jitsi-player-foot-actions"><button class="btn btn-soft btn-sm" type="button" data-act="expandJitsi">Full screen</button>' +
+    (staff ? '<button class="btn btn-soft btn-sm" type="button" data-act="recordHelp">Recording help</button>' : '') +
+    '</span></div></div>' +
     '<div class="' + (staff ? 'grid-form' : '') + '">' +
     (staff ? '<section class="card" id="clsCard"></section>' : '') +
     '<section><div id="clsList"></div></section></div>';
