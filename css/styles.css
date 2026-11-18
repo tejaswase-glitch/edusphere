@@ -288,3 +288,24 @@ video.preview{width:100%;max-height:420px;background:#000;border-radius:12px}
   .btn-danger .t{display:none}
   .stats{grid-template-columns:1fr 1fr;gap:10px}.stat{padding:12px;gap:10px}.stat .ic{width:40px;height:40px}.stat b{font-size:22px}
 }
+
+/* Jitsi stage: large player-like view */
+.jitsi-stage{margin:0 0 18px;padding:12px;background:#101014;color:#fff;border:0;border-radius:16px;box-shadow:0 12px 34px rgba(8,12,45,.22)}
+.jitsi-stage-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 2px 10px;flex-wrap:wrap}
+.jitsi-stage-head>div:first-child{display:grid;gap:3px}
+.jitsi-stage-head b{font-size:16px;color:#fff}
+.jitsi-stage-head small{font-size:11px;color:#c8c8d4}
+.jitsi-hint{color:#c8c8d4;margin:0 2px 10px}
+.jitsi-frame{width:100%;height:clamp(560px,82vh,1000px);min-height:440px;background:#080808;border-radius:12px;overflow:hidden}
+.jitsi-frame iframe{border:0!important}
+.jitsi-stage:fullscreen,.jitsi-stage.jitsi-stage-expanded{position:fixed;inset:0;z-index:99999;width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;margin:0;padding:10px;border-radius:0;overflow:auto;background:#080808}
+.jitsi-stage:fullscreen .jitsi-frame,.jitsi-stage.jitsi-stage-expanded .jitsi-frame{height:calc(100vh - 110px);height:calc(100dvh - 110px);min-height:260px}
+@media(max-width:600px){
+ .jitsi-stage{padding:8px}
+ .jitsi-stage-head{align-items:flex-start}
+ .jitsi-stage-head .actions{width:100%}
+ .jitsi-stage-head .actions .btn{flex:1;min-height:42px}
+ .jitsi-frame{height:74vh;min-height:480px}
+ .jitsi-stage:fullscreen,.jitsi-stage.jitsi-stage-expanded{padding:8px}
+ .jitsi-stage:fullscreen .jitsi-frame,.jitsi-stage.jitsi-stage-expanded .jitsi-frame{height:calc(100vh - 124px);height:calc(100dvh - 124px);min-height:240px}
+}
