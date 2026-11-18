@@ -61,14 +61,14 @@ export async function classesView(el) {
   }
   const drawForm = () => {
     if (!staff) return;
-    const c = editing || {}, provider = c.provider === 'jitsi' ? 'jitsi' : 'Google Meet';
+    const c = editing || {}, provider = c.provider === 'jitsi' ? 'jitsi' : 'google_meet';
     $('#clsCard', el).innerHTML = '<h3>' + (editing ? 'Edit / reschedule class' : 'Schedule a live class') + '</h3>' +
       '<form id="clsForm" class="form" novalidate>' +
       '<label>Class title<input name="title" required maxlength="120" value="' + esc(c.title || '') + '"></label>' +
       subjectField(subjects, c.subject || '') + courseField(courses, c.course_id || '') +
       '<label>Description<textarea name="description" maxlength="800">' + esc(c.description || '') + '</textarea></label>' +
       '<label>Date and time<input name="starts_at" type="datetime-local" required value="' + (c.starts_at ? localInput(c.starts_at) : '') + '"></label>' +
-      '<label>Meeting platform<select name="provider"><option value="Google Meet"' + (provider === 'Google Meet' ? ' selected' : '') + '>Google Meet</option><option value="jitsi"' + (provider === 'jitsi' ? ' selected' : '') + '>Jitsi (opens inside EduSphere)</option></select></label>' +
+      '<label>Meeting platform<select name="provider"><option value="google_meet"' + (provider === 'google_meet' ? ' selected' : '') + '>Google Meet</option><option value="jitsi"' + (provider === 'jitsi' ? ' selected' : '') + '>Jitsi (opens inside EduSphere)</option></select></label>' +
       '<label id="meetUrlField"' + (provider === 'jitsi' ? ' hidden' : '') + '>Google Meet link<input name="meeting_url" type="url" placeholder="https://meet.google.com/abc-defg-hij" value="' + (provider === 'Google Meet' ? esc(c.meeting_url || '') : '') + '"></label>' +
       '<div id="jitsiInfo" class="note"' + (provider !== 'jitsi' ? ' hidden' : '') + '><b>Jitsi room:</b> ' + (c.meeting_room ? esc(c.meeting_room) : 'A unique room will be generated when you schedule.') + '<br>Jitsi uses its public meeting service. Do not use it for confidential classes without reviewing its privacy and service terms.</div>' +
       '<div class="note"><b>Google Meet safety:</b> Approved students can see the link, but may forward it. Use host controls to admit participants.</div>' +
@@ -86,11 +86,11 @@ export async function classesView(el) {
   async function save(e) {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.currentTarget)), btn = e.submitter;
-    const d = new Date(f.starts_at), provider = f.provider === 'jitsi' ? 'jitsi' : 'Google Meet';
+    const d = new Date(f.starts_at), provider = f.provider === 'jitsi' ? 'jitsi' : 'google_meet';
     if (!f.title.trim() || !f.subject.trim()) return toast('Title and subject are required.', 'bad');
     if (Number.isNaN(d.getTime())) return toast('Choose a valid date and time.', 'bad');
     if (!editing && d < new Date()) return toast('Choose a future date and time.', 'bad');
-    if (provider === 'Google Meet' && !isMeetUrl(f.meeting_url)) return toast('Use a valid Google Meet link starting with https://meet.google.com/', 'bad');
+    if (provider === 'google_meet' && !isMeetUrl(f.meeting_url)) return toast('Use a valid Google Meet link starting with https://meet.google.com/', 'bad');
     const room = provider === 'jitsi' ? (editing?.provider === 'jitsi' ? (editing.meeting_room || String(editing.meeting_url || '').split('/').pop()) : makeRoom()) : null;
     const meetingUrl = provider === 'jitsi' ? 'https://meet.jit.si/' + encodeURIComponent(room) : f.meeting_url.trim();
     const row = { title: f.title.trim(), subject: f.subject.trim(), description: (f.description || '').trim(), meeting_url: meetingUrl, provider, meeting_room: room, starts_at: d.toISOString(), course_id: f.course_id || null, updated_at: new Date().toISOString() };
