@@ -32,8 +32,10 @@ export async function classesView(el) {
   el.innerHTML = '<h1>Live Classes</h1><p class="page-sub">' +
     (staff ? 'Schedule classes using Google Meet or an embedded Jitsi room.' : 'Join your scheduled live classes here.') +
     '</p><div id="jitsiStage" class="card jitsi-stage" hidden>' +
-    '<div class="jitsi-stage-head"><div><b id="jitsiTitle">Live class</b><small>EduSphere live classroom</small></div><div class="actions"><button class="btn btn-primary btn-sm" type="button" data-act="expandJitsi">Full screen</button><button class="btn btn-soft btn-sm" type="button" data-act="recordHelp">Recording options</button><button class="btn btn-danger btn-sm" type="button" data-act="leaveJitsi">Leave class</button></div></div>' +
-    '<p class="hint jitsi-hint">Meeting controls are inside Jitsi. For recording, keep this class open and use your phone\'s Screen recorder. On a supported desktop browser, use EduSphere Record Screen in a separate tab and select this meeting tab.</p>' +
+    '<div class="jitsi-stage-head"><div><b id="jitsiTitle">Live class</b><small>EduSphere live classroom · Live session</small></div><div class="actions"><button class="btn btn-primary btn-sm" type="button" data-act="expandJitsi">Full screen</button>' +
+    (staff ? '<button class="btn btn-soft btn-sm" type="button" data-act="recordHelp">Teacher recording guide</button>' : '') +
+    '<button class="btn btn-danger btn-sm" type="button" data-act="leaveJitsi">Leave class</button></div></div>' +
+    (staff ? '<p class="hint jitsi-hint">Teacher only: recording is not automatic. Use your device screen recorder; Android may not capture all meeting audio. Students do not see these recording instructions.</p>' : '') +
     '<div id="jitsiFrame" class="jitsi-frame"></div></div>' +
     '<div class="' + (staff ? 'grid-form' : '') + '">' +
     (staff ? '<section class="card" id="clsCard"></section>' : '') +
@@ -69,7 +71,7 @@ export async function classesView(el) {
       '<label>Description<textarea name="description" maxlength="800">' + esc(c.description || '') + '</textarea></label>' +
       '<label>Date and time<input name="starts_at" type="datetime-local" required value="' + (c.starts_at ? localInput(c.starts_at) : '') + '"></label>' +
       '<label>Meeting platform<select name="provider"><option value="google_meet"' + (provider === 'google_meet' ? ' selected' : '') + '>Google Meet</option><option value="jitsi"' + (provider === 'jitsi' ? ' selected' : '') + '>Jitsi (opens inside EduSphere)</option></select></label>' +
-      '<label id="meetUrlField"' + (provider === 'jitsi' ? ' hidden' : '') + '>Google Meet link<input name="meeting_url" type="url" placeholder="https://meet.google.com/abc-defg-hij" value="' + (provider === 'Google Meet' ? esc(c.meeting_url || '') : '') + '"></label>' +
+      '<label id="meetUrlField"' + (provider === 'jitsi' ? ' hidden' : '') + '>Google Meet link<input name="meeting_url" type="url" placeholder="https://meet.google.com/abc-defg-hij" value="' + (provider === 'google_meet' ? esc(c.meeting_url || '') : '') + '"></label>' +
       '<div id="jitsiInfo" class="note"' + (provider !== 'jitsi' ? ' hidden' : '') + '><b>Jitsi room:</b> ' + (c.meeting_room ? esc(c.meeting_room) : 'A unique room will be generated when you schedule.') + '<br>Jitsi uses its public meeting service. Do not use it for confidential classes without reviewing its privacy and service terms.</div>' +
       '<div class="note"><b>Google Meet safety:</b> Approved students can see the link, but may forward it. Use host controls to admit participants.</div>' +
       '<div class="actions"><button class="btn btn-primary" type="submit">' + (editing ? 'Save changes' : 'Schedule class') + '</button>' +
