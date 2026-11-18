@@ -40,10 +40,25 @@ export async function classesView(el) {
     '<section><div id="clsList"></div></section></div>';
 
   const closeJitsi = () => {
+    const stage = $('#jitsiStage', el);
+    if (document.fullscreenElement === stage) document.exitFullscreen?.().catch(() => {});
+    stage.classList.remove('jitsi-stage-expanded');
     if (jitsiApi) { try { jitsiApi.dispose(); } catch {} jitsiApi = null; }
-    $('#jitsiStage', el).hidden = true;
+    stage.hidden = true;
     $('#jitsiFrame', el).innerHTML = '';
   };
+  async function expandJitsi() {
+    const stage = $('#jitsiStage', el);
+    try {
+      if (document.fullscreenElement === stage) await document.exitFullscreen();
+      else if (stage.requestFullscreen) await stage.requestFullscreen();
+      else stage.classList.toggle('jitsi-stage-expanded');
+    } catch {
+      stage.classList.toggle('jitsi-stage-expanded');
+    }
+    const b = $('[data-act="expandJitsi"]', stage);
+    if (b) b.textContent = document.fullscreenElement === stage || stage.classList.contains('jitsi-stage-expanded') ? 'Exit full screen' : 'Full screen';
+  }
   const drawForm = () => {
     if (!staff) return;
     const c = editing || {}, provider = c.provider === 'jitsi' ? 'jitsi' : 'Google Meet';
@@ -106,8 +121,13 @@ export async function classesView(el) {
         width: '100%',
         height: '100%',
         userInfo: { displayName: state.profile.full_name || 'EduSphere participant' },
-        configOverwrite: { prejoinPageEnabled: true, startWithAudioMuted: false, startWithVideoMuted: false },
-        interfaceConfigOverwrite: { MOBILE_APP_PROMO: false }
+        configOverwrite: {
+          prejoinPageEnabled: true,
+          startWithAudioMuted: false,
+          startWithVideoMuted: false,
+          toolbarButtons: ['microphone', 'camera', 'desktop', 'chat', 'participants-pane', 'raisehand', 'tileview', 'fullscreen', 'settings', 'hangup', 'select-background', 'videoquality']
+        },
+        interfaceConfigOverwrite: { MOBILE_APP_PROMO: false, SHOW_JITSI_WATERMARK: false }
       });
       jitsiApi.addListener('readyToClose', closeJitsi);
     } catch (err) { closeJitsi(); toast(err.message || 'Could not open the Jitsi class.', 'bad'); }
@@ -122,7 +142,7 @@ export async function classesView(el) {
     rows = data || []; draw();
   }
   function draw() {
-    const now = Date.now(), up = rows.filter(c => c.status === 'scheduled' && new Date(c.starts_at) >= now - 3600e3), other = rows.filter(c => !up.includes(c)).reverse();
+    const now = Date.now(), up = rows.filter(c => c.status === 'scheduled' && new Date(c.starts_at) >= now - 3600e3);
     const card = c => {
       const [t, k] = label(c), own = admin || c.created_by === me, active = c.status === 'scheduled';
       const jitsi = c.provider === 'jitsi';
@@ -134,8 +154,7 @@ export async function classesView(el) {
         (staff && own && active ? '<button class="btn btn-soft btn-sm" data-act="edit" data-id="' + esc(c.id) + '" type="button">Edit / reschedule</button><button class="btn btn-soft btn-sm" data-act="done" data-id="' + esc(c.id) + '" type="button">Mark completed</button><button class="btn btn-outline-danger btn-sm" data-act="cancel" data-id="' + esc(c.id) + '" type="button">Cancel class</button>' : '') +
         '</div></div>';
     };
-    $('#clsList', el).innerHTML = '<h3 class="subhead" style="margin-top:0">Upcoming</h3>' + (up.length ? '<div class="list">' + up.map(card).join('') + '</div>' : empty('No upcoming classes.')) +
-      (other.length ? '<h3 class="subhead">Cancelled, completed and past</h3><div class="list">' + other.map(card).join('') + '</div>' : '');
+    $('#clsList', el).innerHTML = '<h3 class="subhead" style="margin-top:0">Upcoming</h3>' + (up.length ? '<div class="list">' + up.map(card).join('') + '</div>' : empty('No upcoming classes.'));
   }
   const setStatus = async (id, st, msg) => {
     const { data, error } = await sb.from('live_classes').update({ status: st, updated_at: new Date().toISOString() }).eq('id', id).select('id');
@@ -147,6 +166,7 @@ export async function classesView(el) {
   actions(el, {
     join: ({ id }) => { const c = rows.find(r => r.id === id); if (c) return joinJitsi(c); },
     leaveJitsi: closeJitsi,
+    expandJitsi,
     edit: ({ id }) => { editing = rows.find(r => r.id === id); drawForm(); $('#clsCard', el).scrollIntoView({ behavior: 'smooth', block: 'start' }); },
     cancelEdit: () => { editing = null; drawForm(); },
     cancel: async ({ id }) => { if (await confirmDialog({ title: 'Cancel this class?', text: 'Students will see it as cancelled and the Join button will disappear. The record is kept in the history.', confirm: 'Cancel class' })) await setStatus(id, 'cancelled', 'Class cancelled.'); },
