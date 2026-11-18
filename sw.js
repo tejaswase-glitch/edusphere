@@ -1,7 +1,7 @@
 // EduSphere service worker: makes the app installable and the shell load offline.
 // Network-first for our own files (so updates arrive), cache as fallback. Never touches Supabase/YouTube/other origins,
 // and never caches signed URLs, API calls or user data.
-const CACHE = 'edusphere-shell-v10';
+const CACHE = 'edusphere-shell-v11';
 const SHELL = ['./', 'index.html', 'config.js', 'css/styles.css', 'manifest.webmanifest', 'assets/logo.svg', 'assets/favicon.svg', 'assets/hero.svg', 'assets/banner.svg', 'assets/generic.svg', 'assets/biology.svg', 'assets/mathematics.svg', 'assets/physics.svg', 'assets/chemistry.svg',
   'js/main.js', 'js/core.js', 'js/auth.js', 'js/portal.js', 'js/ui.js', 'js/data.js', 'js/student.js', 'js/admin.js', 'js/courses.js', 'js/lectures.js', 'js/materials.js', 'js/classes.js', 'js/recorder.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
