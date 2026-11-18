@@ -9,7 +9,7 @@ export async function studentDashboard(el, { go }) {
     sb.from('recorded_lectures').select('id,title,subject,thumbnail_url,video_id,teacher_name,created_at').eq('is_published', true).order('created_at', { ascending: false }),
     sb.from('lecture_progress').select('lecture_id,last_watched_at,completed').eq('user_id', me).order('last_watched_at', { ascending: false }),
     sb.from('courses').select('id,title,subject,description').eq('is_active', true).order('title').limit(6),
-    sb.from('live_classes').select('id,title,subject,starts_at,meeting_url,status,rescheduled_at').eq('status', 'scheduled').gte('starts_at', nowIso).order('starts_at').limit(1),
+    sb.from('live_classes').select('id,title,subject,starts_at,meeting_url,provider,meeting_room,status,rescheduled_at').eq('status', 'scheduled').gte('starts_at', nowIso).order('starts_at').limit(1),
     sb.from('materials').select('id', { count: 'exact', head: true }).eq('is_published', true),
   ]);
   for (const r of [lec, prog, courses, cls, mats]) if (r.error) throw r.error;
@@ -33,7 +33,7 @@ export async function studentDashboard(el, { go }) {
   ${courses.data.length ? `<div class="course-grid">${courses.data.map(c => `<article class="course-card"><img src="${subjectArt(c.subject || c.title)}" alt="" loading="lazy"><div><h3>${esc(c.title)}</h3><p>${esc(c.subject || c.description || '')}</p></div></article>`).join('')}</div>` : empty('No courses have been added yet.')}
   <div class="grid-2" style="margin-top:22px">
     <section class="card"><div class="sec-head" style="margin-top:0"><h3 style="margin:0">Upcoming Live Class</h3><button class="link" data-act="classes" type="button">View All</button></div>
-      ${next ? `<div class="mini"><span class="ic">${svg('live', 28)}</span><div><b>${esc(next.title)}</b><small>${esc(next.subject || '')}${next.subject ? ' · ' : ''}${niceDate(next.starts_at)}${next.rescheduled_at ? ' · Rescheduled' : ''}</small><div style="margin-top:8px"><a class="btn btn-primary btn-sm" href="${esc(next.meeting_url)}" target="_blank" rel="noopener noreferrer">Join Class</a></div></div></div>` : empty('No upcoming live classes.')}</section>
+      ${next ? `<div class="mini"><span class="ic">${svg('live', 28)}</span><div><b>${esc(next.title)}</b><small>${esc(next.subject || '')}${next.subject ? ' · ' : ''}${niceDate(next.starts_at)}${next.rescheduled_at ? ' · Rescheduled' : ''}</small><div style="margin-top:8px"><button class="btn btn-primary btn-sm" data-act="classes" type="button">Open Live Class in EduSphere</button></div></div></div>` : empty('No upcoming live classes.')}</section>
     <section class="card"><h3>Recent Activity</h3>
       ${P.length ? `<ul class="activity">${P.slice(0, 4).map(p => `<li><span class="dot">${svg(p.completed ? 'check' : 'play', 18)}</span><div><b>${p.completed ? 'Completed' : 'Watched'}: ${esc(byId[p.lecture_id].title)}</b><small>${esc(relTime(p.last_watched_at))}</small></div></li>`).join('')}</ul>` : empty('Your activity will appear here after you watch a lecture.')}</section>
   </div>`;
