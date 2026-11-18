@@ -2,7 +2,7 @@
 import { state, $, $$, esc, initials, closeModal } from './core.js';
 import { svg, errBox, loading } from './ui.js';
 import { studentDashboard, profileView } from './student.js';
-import { adminDashboard, teacherDashboard, studentsView, teachersView, auditView } from './admin.js?v=20261119-provider-fix';
+import { adminDashboard, teacherDashboard, studentsView, teachersView, auditView } from './admin.js?v=20261119-provider-fix2';
 import { coursesView } from './courses.js';
 import { lecturesView } from './lectures.js';
 import { materialsView } from './materials.js';
