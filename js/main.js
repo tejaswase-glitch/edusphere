@@ -40,7 +40,7 @@ if (social.length) { $('#followBox').hidden = false; $('#followLinks').innerHTML
 
 // Installable app (PWA). Relative path so it works under /edusphere/ on GitHub Pages.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  const reg = () => navigator.serviceWorker.register('./sw.js?v=20261119-jitsi').catch(e => console.warn('Service worker not registered:', e.message));
+  const reg = () => navigator.serviceWorker.register('./sw.js?v=20261119-classroom').catch(e => console.warn('Service worker not registered:', e.message));
   // main.js starts after a top-level await, so 'load' may already have fired.
   if (document.readyState === 'complete') reg(); else window.addEventListener('load', reg);
 }
