@@ -122,7 +122,7 @@ export async function classesView(el) {
         height: '100%',
         userInfo: { displayName: state.profile.full_name || 'EduSphere participant' },
         configOverwrite: {
-          prejoinPageEnabled: true,
+          prejoinPageEnabled: state.profile.role !== 'student',
           startWithAudioMuted: false,
           startWithVideoMuted: false,
           toolbarButtons: ['microphone', 'camera', 'desktop', 'chat', 'participants-pane', 'raisehand', 'tileview', 'fullscreen', 'settings', 'hangup', 'select-background', 'videoquality']
