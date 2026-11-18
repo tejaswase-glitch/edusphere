@@ -30,14 +30,16 @@ export async function teacherDashboard(el, { go }) {
   const me = state.user.id, now = new Date(Date.now() - 3600e3).toISOString();
   const [lec, mat, crs, cls] = await Promise.all([
     count('recorded_lectures', q => q.eq('created_by', me)), count('materials', q => q.eq('uploaded_by', me)), count('courses', q => q.eq('created_by', me)),
-    sb.from('live_classes').select('id,title,subject,starts_at,meeting_url,status,rescheduled_at').eq('created_by', me).eq('status', 'scheduled').gte('starts_at', now).order('starts_at').limit(5),
+    sb.from('live_classes').select('id,title,subject,starts_at,meeting_url,provider,meeting_room,status,rescheduled_at').eq('created_by', me).eq('status', 'scheduled').gte('starts_at', now).order('starts_at').limit(5),
   ]);
   if (cls.error) throw cls.error;
   el.innerHTML = `<section class="welcome"><div><h1>Hello, ${esc(firstName(state.profile.full_name))}! <span aria-hidden="true">👋</span></h1><p>Your teaching space${state.profile.subject ? ' · ' + esc(state.profile.subject) : ''}</p></div><img src="assets/banner.svg" alt="" width="260" height="139"></section>
   <section class="stats">${stat('play', lec, 'My lectures')}${stat('doc', mat, 'My materials')}${stat('book', crs, 'My courses')}${stat('live', cls.data.length, 'Upcoming classes')}</section>
   <div class="actions" style="margin-bottom:8px"><button class="btn btn-primary" data-act="go" data-to="lectures" type="button">Publish a lecture</button><button class="btn btn-soft" data-act="go" data-to="materials" type="button">Upload material</button><button class="btn btn-soft" data-act="go" data-to="classes" type="button">Schedule a class</button><button class="btn btn-soft" data-act="go" data-to="recorder" type="button">Record screen</button></div>
   <div class="sec-head"><h2>My upcoming classes</h2><button class="link" type="button" data-act="go" data-to="classes">Manage</button></div>
-  <div class="list">${cls.data.length ? cls.data.map(c => `<div class="row"><div class="main"><b>${esc(c.title)}</b><small>${esc(c.subject || '')} · ${niceDate(c.starts_at)}${c.rescheduled_at ? ' · Rescheduled' : ''}</small></div><a class="btn btn-primary btn-sm" href="${esc(c.meeting_url)}" target="_blank" rel="noopener noreferrer">Start Google Meet</a></div>`).join('') : empty('No upcoming classes. Schedule one from Live Classes.')}</div>`;
+  <div class="list">${cls.data.length ? cls.data.map(c => `<div class="row"><div class="main"><b>${esc(c.title)}</b><small>${esc(c.subject || '')} · ${niceDate(c.starts_at)}${c.rescheduled_at ? ' · Rescheduled' : ''}</small></div>${c.provider === 'jitsi'
+      ? '<button class="btn btn-primary btn-sm" data-act="go" data-to="classes" type="button">Open Jitsi class</button>'
+      : '<a class="btn btn-primary btn-sm" href="' + esc(c.meeting_url) + '" target="_blank" rel="noopener noreferrer">Start Google Meet</a>'}</div>`).join('') : empty('No upcoming classes. Schedule one from Live Classes.')}</div>`;
   actions(el, { go: ({ to }) => go(to) });
 }
 
