@@ -6,7 +6,7 @@ import { adminDashboard, teacherDashboard, studentsView, teachersView, auditView
 import { coursesView } from './courses.js';
 import { lecturesView } from './lectures.js';
 import { materialsView } from './materials.js';
-import { classesView } from './classes.js?v=20261119-jitsi';
+import { classesView } from './classes.js?v=20261119-fullscreen1';
 import { recorderView, stopRecording, isRecording } from './recorder.js';
 
 const NAV = {
