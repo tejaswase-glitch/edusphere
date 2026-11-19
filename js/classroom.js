@@ -72,16 +72,27 @@ function stopTracks() {
   if (audioContext) { audioContext.close().catch(()=>{}); audioContext=null; }
 }
 function finishRecording() {
-  const blob = new Blob(chunks, {type: recorder?.mimeType || 'video/webm'});
+  const mime = recorder?.mimeType || 'video/webm';
+  const blob = new Blob(chunks, {type:mime});
+  $('#recordStart').disabled = false;
+  $('#recordStop').disabled = true;
+  $('#recordStop').classList.add('hidden');
+  stopTracks();
+  if (!blob.size) {
+    status('Recording stopped, but no video data was captured. Please try a short 10-second test again.');
+    toast('No video file was created. Check microphone permission and try again.');
+    return;
+  }
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = objectUrl;
+  const a = document.createElement('a');
+  a.href = objectUrl;
   a.download = 'edusphere-lecture-' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.webm';
-  a.textContent = 'Save / Download lecture video';
-  a.style.cssText = 'display:inline-block;margin:10px 16px;padding:12px 16px;border-radius:8px;background:#e8f4ed;color:#174c31;font-weight:800';
-  $('#roomToast').replaceChildren(document.createTextNode('Lecture video is ready on this device. '), a);
-  $('#recordStart').disabled = false; $('#recordStop').classList.add('hidden');
-  stopTracks();
+  a.textContent = '⬇ Download Lecture Video';
+  a.setAttribute('role','button');
+  a.style.cssText = 'display:block;width:max-content;max-width:100%;margin:12px auto;padding:14px 18px;border-radius:10px;background:#e8f4ed;color:#174c31;font-size:16px;font-weight:800;text-decoration:none;text-align:center';
+  $('#roomToast').replaceChildren(document.createTextNode('Video ready (' + (blob.size/1024/1024).toFixed(2) + ' MB). Tap below to save it to your phone.'), a);
+  status('Recording stopped and video finalized. Tap Download Lecture Video below. Find the saved file in Chrome Downloads.');
 }
 async function startRecording() {
   if (!confirm('Record the teacher microphone and teaching view only (PDF slides or whiteboard camera)? Student audio/video will not be included. Make sure everyone has consented.')) return;
@@ -124,7 +135,9 @@ async function startRecording() {
     const output=new MediaStream([...canvasStream.getVideoTracks(),...micStream.getAudioTracks()]);
     const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
     recorder=new MediaRecorder(output,mime?{mimeType:mime}:undefined);
-    chunks=[]; recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
+    chunks=[];
+    recorder.ondataavailable=e=>{if(e.data && e.data.size)chunks.push(e.data);};
+    recorder.onerror=e=>{status('Recorder error: ' + (e?.error?.message || 'The browser could not encode this video.'));};
     recorder.onstop=()=>{video?.remove();finishRecording();};
     recorder.start(1000); paint();
     modeObserver=new MutationObserver(async()=>{
@@ -143,7 +156,21 @@ async function startRecording() {
     $('#recordStop').classList.add('hidden');
   }
 }
-function stopRecording() { if (recorder && recorder.state !== 'inactive') recorder.stop(); }
+function stopRecording() {
+  if (!recorder || recorder.state === 'inactive') {
+    status('No active recording was found. Start a new recording first.');
+    return;
+  }
+  $('#recordStop').disabled = true;
+  $('#recordStop').textContent = 'Saving…';
+  status('Stopping recording and preparing your video… Please wait.');
+  try { recorder.stop(); }
+  catch(e) {
+    $('#recordStop').disabled = false;
+    $('#recordStop').textContent = 'Stop & Save';
+    status('Could not stop recording: ' + (e?.message || String(e)));
+  }
+}
 
 function bindLeaveButton() {
   const button = $('#leaveRoom');
