@@ -34,13 +34,17 @@ async function renderPdfPage(n) {
   const page = await pdfDoc.getPage(pdfPage);
   const wrap = $('.pdf-canvas-wrap');
   const availableWidth = Math.max(240, wrap.clientWidth - 12);
-  const availableHeight = Math.max(240, wrap.clientHeight - 12);
   const base = page.getViewport({scale:1});
-  const scale = Math.min(availableWidth / base.width, availableHeight / base.height);
-  const viewport = page.getViewport({scale:Math.max(.25,scale)});
+  // Fit the PDF to the full available screen width; long portrait pages scroll vertically.
+  // Render at device pixel ratio for sharper text on high-density phone screens.
+  const cssScale = Math.max(.25, availableWidth / base.width);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const viewport = page.getViewport({scale:cssScale * dpr});
   const canvas = $('#pdfCanvas'), ctx = canvas.getContext('2d');
   canvas.width = Math.floor(viewport.width); canvas.height = Math.floor(viewport.height);
-  canvas.style.width = canvas.width + 'px'; canvas.style.height = canvas.height + 'px';
+  canvas.style.width = Math.floor(viewport.width / dpr) + 'px';
+  canvas.style.height = Math.floor(viewport.height / dpr) + 'px';
+  wrap.scrollTop = 0;
   await page.render({canvasContext:ctx,viewport}).promise;
   $('#pdfPage').textContent = 'Page ' + pdfPage + ' / ' + pdfDoc.numPages;
   $('#pdfPrev').disabled = pdfPage <= 1; $('#pdfNext').disabled = pdfPage >= pdfDoc.numPages;
@@ -141,8 +145,12 @@ async function startRecording() {
       if(pdfMode()){
         const source=$('#pdfCanvas');
         if(source.width>0&&source.height>0){
-          const scale=Math.min(W/source.width,H/source.height),w=source.width*scale,h=source.height*scale;
-          ctx.drawImage(source,(W-w)/2,(H-h)/2,w,h);
+          const wrap=$('.pdf-canvas-wrap');
+          const viewW=Math.max(1,wrap.clientWidth), viewH=Math.max(1,wrap.clientHeight);
+          const ratioX=source.width/viewW, ratioY=source.height/Math.max(1,parseFloat(source.style.height)||source.height);
+          const cropW=Math.min(source.width,viewW*ratioX), cropH=Math.min(source.height,viewH*ratioY);
+          const sx=Math.max(0,(source.width-cropW)/2), sy=Math.min(Math.max(0,wrap.scrollTop*ratioY),Math.max(0,source.height-cropH));
+          ctx.drawImage(source,sx,sy,cropW,cropH,0,0,W,H);
         }
       } else if(video.readyState>=2&&video.videoWidth){
         const scale=Math.max(W/video.videoWidth,H/video.videoHeight),sw=W/scale,sh=H/scale,sx=(video.videoWidth-sw)/2,sy=(video.videoHeight-sh)/2;
@@ -161,7 +169,7 @@ async function startRecording() {
     // Android Chrome may reject MediaRecorder.start() if canvas.captureStream()
     // has not produced a frame yet. Draw synchronously before creating the stream.
     drawTeachingFrame();
-    const canvasStream=recordCanvas.captureStream(24);
+    const canvasStream=recordCanvas.captureStream(30);
     const canvasVideoTrack=canvasStream.getVideoTracks()[0];
     if(!canvasVideoTrack || canvasVideoTrack.readyState!=='live') throw new Error('The browser could not create a live recording video track. Update Chrome and retry.');
     const output=new MediaStream([canvasVideoTrack,...micStream.getAudioTracks()]);
@@ -169,7 +177,7 @@ async function startRecording() {
     chunks=[];
     const mimeCandidates=['video/webm;codecs=vp8,opus','video/webm;codecs=vp9,opus','video/webm'];
     const supportedMimes=mimeCandidates.filter(t=>MediaRecorder.isTypeSupported(t));
-    const recorderOptions=[...supportedMimes.map(mimeType=>({mimeType,videoBitsPerSecond:2500000,audioBitsPerSecond:128000})),{videoBitsPerSecond:2500000,audioBitsPerSecond:128000},{}];
+    const recorderOptions=[...supportedMimes.map(mimeType=>({mimeType,videoBitsPerSecond:4500000,audioBitsPerSecond:160000})),{videoBitsPerSecond:4500000,audioBitsPerSecond:160000},{}];
     let startError=null;
     for(const options of recorderOptions){
       try{
