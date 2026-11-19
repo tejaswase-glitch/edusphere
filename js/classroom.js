@@ -10,6 +10,8 @@ let micStream = null, cameraStream = null, recordCanvas = null, recordFrame = 0,
 let pdfDoc = null, pdfPage = 1, pdfChannel = null, pdfJs = null, isTeacher = false, currentPdfUrl = null, pendingPdfFile = null;
 const incomingPdfTransfers = new Map();
 let classEndedForStudents = false;
+let pdfChannelReady = false;
+let pdfChannelReadyPromise = null;
 const participantNames = new Map();
 function showClassEnded(){
   const shell=document.querySelector('.room-shell');
@@ -30,6 +32,7 @@ function addChatMessage(name,message,own=false){
 }
 async function sendChat(){
  const input=$('#chatInput'),message=(input?.value||'').trim();if(!message||!pdfChannel)return;
+ if(!pdfChannelReady){toast('Chat is connecting. Please try again in a moment.');return;}
  const payload={name:state.profile?.full_name||state.profile?.role||'Participant',message:message.slice(0,500),sentAt:Date.now()};
  try{const {error}=await pdfChannel.send({type:'broadcast',event:'class-chat',payload});if(error)throw error;addChatMessage(payload.name,payload.message,true);input.value='';}
  catch(e){toast('Chat message could not be sent. Check the class connection.');}
@@ -344,8 +347,8 @@ async function init() {
     catch(err){pdfStatus(err.message||'Could not share PDF.');}finally{e.target.value='';}
   });
   $('#pdfSave').addEventListener('click',savePendingPdf);
-  $('#pdfPrev').addEventListener('click',async()=>{if(isTeacher && pdfDoc){await renderPdfPage(pdfPage-1);await sendPdfState('pdf-page',{page:pdfPage});}});
-  $('#pdfNext').addEventListener('click',async()=>{if(isTeacher && pdfDoc){await renderPdfPage(pdfPage+1);await sendPdfState('pdf-page',{page:pdfPage});}});
+  $('#pdfPrev').addEventListener('click',async()=>{if(pdfDoc){await renderPdfPage(pdfPage-1);if(isTeacher)await sendPdfState('pdf-page',{page:pdfPage});}});
+  $('#pdfNext').addEventListener('click',async()=>{if(pdfDoc){await renderPdfPage(pdfPage+1);if(isTeacher)await sendPdfState('pdf-page',{page:pdfPage});}});
   $('#pdfClose').textContent='← Back to Camera';$('#pdfSave').classList.add('hidden');$('#pdfSave').disabled=false;$('#pdfSave').textContent='Save to EduSphere';
   $('#pdfClose').addEventListener('click',async()=>{
     $('#pdfViewer').classList.remove('active');document.querySelector('.room-shell')?.classList.remove('pdf-active');pdfDoc=null;
@@ -356,7 +359,15 @@ async function init() {
   pdfChannel.on('broadcast',{event:'pdf-page'},({payload})=>{if(!isTeacher && pdfDoc) renderPdfPage(payload.page);});
   pdfChannel.on('broadcast',{event:'class-chat'},({payload})=>{if(payload?.message)addChatMessage(payload.name||'Participant',String(payload.message).slice(0,500));});
   pdfChannel.on('broadcast',{event:'class-ended'},()=>{if(!isTeacher){status('The teacher has ended this class.');try{room?.leave();}catch{}try{connection?.disconnect();}catch{}showClassEnded();}});
-  pdfChannel.subscribe();
+  pdfChannel.on('broadcast',{event:'pdf-presentation'},({payload})=>{if(!isTeacher&&payload?.closed){$('#pdfViewer').classList.remove('active');pdfDoc=null;}});
+  pdfChannelReadyPromise = new Promise(resolve=>{
+    pdfChannel.subscribe((channelStatus)=>{
+      pdfChannelReady = channelStatus === 'SUBSCRIBED';
+      if(pdfChannelReady) resolve(true);
+      if(channelStatus === 'CHANNEL_ERROR' || channelStatus === 'TIMED_OUT' || channelStatus === 'CLOSED') resolve(false);
+    });
+    setTimeout(()=>resolve(pdfChannelReady),8000);
+  });
 
   $('#recordStop').addEventListener('click',stopRecording);
   $('#chatSend')?.addEventListener('click',sendChat);
@@ -371,10 +382,13 @@ async function init() {
     if(!confirm('End this class for all students? You will remain in the classroom to finish and save your recording.'))return;
     $('#endForStudents').disabled=true;$('#endForStudents').textContent='Ending…';
     try{
-      const {data:ended,error}=await sb.from('live_classes').update({status:'completed'}).eq('id',classId).eq('status','scheduled').select('id').maybeSingle();
+      const {data:ended,error}=await sb.from('live_classes').update({status:'completed'}).eq('id',classId).eq('created_by',state.user.id).eq('status','scheduled').select('id').maybeSingle();
       if(error)throw error;
-      if(!ended)throw new Error('The class could not be marked as ended. Refresh and check that you are the class teacher.');
-      const {error:broadcastError}=await pdfChannel.send({type:'broadcast',event:'class-ended',payload:{ended:true}});if(broadcastError)console.warn('Class-end broadcast warning:',broadcastError);
+      if(!ended)throw new Error('Supabase did not confirm the class update. Check teacher permissions and class status.');
+      const ready = await Promise.race([pdfChannelReadyPromise || Promise.resolve(pdfChannelReady),new Promise(resolve=>setTimeout(()=>resolve(false),8000))]);
+      if(!ready)throw new Error('Class status was updated, but the student notification channel is not connected. Keep this page open and retry notification.');
+      const {error:broadcastError}=await pdfChannel.send({type:'broadcast',event:'class-ended',payload:{ended:true}});
+      if(broadcastError)throw broadcastError;
     }catch(e){$('#endForStudents').disabled=false;$('#endForStudents').textContent='End Class for Students';toast('Could not end the class: '+(e.message||e));return;}
     $('#endForStudents').textContent='Class ended for students';
     status('Class ended for students. You are still in the classroom. Stop & Save your recording, wait for the video-ready message, then Leave Class.');
