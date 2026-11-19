@@ -5,6 +5,42 @@ const classId = params.get('classId');
 const status = (s) => { $('#roomStatus').textContent = s; };
 const toast = (s) => { $('#roomToast').textContent = s; };
 let api = null, recorder = null, streams = [], chunks = [], audioContext = null, objectUrl = null;
+let pdfDoc = null, pdfPage = 1, pdfChannel = null, pdfJs = null, isTeacher = false, currentPdfUrl = null;
+const pdfStatus = (s) => { $('#pdfStatus').textContent = s; };
+async function loadPdfJs() {
+  if (pdfJs) return pdfJs;
+  pdfJs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs');
+  pdfJs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+  return pdfJs;
+}
+async function showPdf(url, name, page = 1) {
+  try {
+    pdfStatus('Loading PDF…');
+    const lib = await loadPdfJs();
+    pdfDoc = await lib.getDocument({url}).promise;
+    currentPdfUrl = url;
+    $('#pdfViewer').classList.add('active');
+    $('#pdfName').textContent = name || 'Class PDF';
+    await renderPdfPage(Math.min(Math.max(1, Number(page) || 1), pdfDoc.numPages));
+    pdfStatus('PDF is being presented in this class.');
+  } catch (e) { pdfStatus('Could not open PDF: ' + (e.message || 'unknown error')); }
+}
+async function renderPdfPage(n) {
+  if (!pdfDoc) return;
+  pdfPage = Math.min(Math.max(1, n), pdfDoc.numPages);
+  const page = await pdfDoc.getPage(pdfPage), viewport = page.getViewport({scale:1.35});
+  const canvas = $('#pdfCanvas'), ctx = canvas.getContext('2d');
+  canvas.width = viewport.width; canvas.height = viewport.height;
+  await page.render({canvasContext:ctx,viewport}).promise;
+  $('#pdfPage').textContent = 'Page ' + pdfPage + ' / ' + pdfDoc.numPages;
+  $('#pdfPrev').disabled = pdfPage <= 1; $('#pdfNext').disabled = pdfPage >= pdfDoc.numPages;
+}
+async function sendPdfState(event, payload) {
+  if (!pdfChannel) return;
+  const {error} = await pdfChannel.send({type:'broadcast',event,payload});
+  if (error) pdfStatus('Could not sync PDF with students. Check connection.');
+}
+
 
 function stopTracks() { streams.forEach(s => s.getTracks().forEach(t => t.stop())); streams = []; if (audioContext) { audioContext.close().catch(()=>{}); audioContext = null; } }
 function finishRecording() {
@@ -66,9 +102,9 @@ async function init() {
   const {data:profile,error:profileError} = await sb.from('profiles').select('id,full_name,role,status').eq('id',session.user.id).single();
   if (profileError || !profile || profile.status !== 'approved') { status('Your EduSphere account is not approved.'); return; }
   state.profile = profile;
-  const {data:c,error} = await sb.from('live_classes').select('id,title,provider,status,created_by,is_published').eq('id',classId).maybeSingle();
+  const {data:c,error} = await sb.from('live_classes').select('id,title,subject,course_id,provider,status,created_by,is_published').eq('id',classId).maybeSingle();
   if (error || !c || c.provider !== 'jitsi' || c.status !== 'scheduled') { status('This class is unavailable.'); return; }
-  const teacher = profile.role === 'admin' || (profile.role === 'teacher' && c.created_by === profile.id);
+  const teacher = profile.role === 'admin' || (profile.role === 'teacher' && c.created_by === profile.id);\n  isTeacher = teacher;
   if (profile.role === 'teacher' && !teacher) { status('Teachers can enter only their own classes.'); return; }
   if (profile.role === 'student' && !c.is_published) { status('This class is not published for students.'); return; }
   $('#roomTitle').textContent = c.title || 'EduSphere Live Classroom';
@@ -78,6 +114,32 @@ async function init() {
     $('#recordNote').textContent = 'Teacher recording: this page is a separate classroom window, so the EduSphere dashboard is not part of the class capture. On Android, use the built-in Screen Recorder and keep this page in front. Recording may include participant audio/video; obtain consent before recording.';
   } else $('#recordNote').classList.add('hidden');
   $('#recordStart').addEventListener('click',startRecording);
+  $('#pdfFile').addEventListener('change', async e => {
+    const file = e.target.files?.[0]; if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) { pdfStatus('Please choose a PDF file.'); return; }
+    if (file.size > 50 * 1024 * 1024) { pdfStatus('PDF must be 50 MB or smaller.'); return; }
+    try {
+      pdfStatus('Uploading PDF…');
+      const path = state.user.id + '/' + crypto.randomUUID() + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+      const {error:upError} = await sb.storage.from('study-materials').upload(path,file,{contentType:'application/pdf',upsert:false});
+      if (upError) throw upError;
+      const {error:rowError} = await sb.from('materials').insert({title:file.name.replace(/\.pdf$/i,''),subject:c.subject || 'Live class',description:'Shared during live class: '+c.title,file_path:path,file_name:file.name,content_type:'application/pdf',uploaded_by:state.user.id,is_published:true,course_id:c.course_id || null});
+      if (rowError) throw rowError;
+      const {data:signed,error:signedError} = await sb.storage.from('study-materials').createSignedUrl(path,3600,{download:false});
+      if (signedError) throw signedError;
+      await showPdf(signed.signedUrl,file.name,1);
+      await sendPdfState('pdf-presentation',{url:signed.signedUrl,name:file.name,page:1,closed:false});
+    } catch(err) { pdfStatus(err.message || 'PDF upload failed.'); }
+    finally { e.target.value=''; }
+  });
+  $('#pdfPrev').addEventListener('click',async()=>{if(isTeacher && pdfDoc){await renderPdfPage(pdfPage-1);await sendPdfState('pdf-page',{page:pdfPage});}});
+  $('#pdfNext').addEventListener('click',async()=>{if(isTeacher && pdfDoc){await renderPdfPage(pdfPage+1);await sendPdfState('pdf-page',{page:pdfPage});}});
+  $('#pdfClose').addEventListener('click',async()=>{if(isTeacher){$('#pdfViewer').classList.remove('active');pdfDoc=null;await sendPdfState('pdf-presentation',{closed:true});}});
+  pdfChannel = sb.channel('class-pdf-' + classId);
+  pdfChannel.on('broadcast',{event:'pdf-presentation'},({payload})=>{if(!isTeacher){if(payload?.closed){$('#pdfViewer').classList.remove('active');pdfDoc=null;}else if(payload?.url) showPdf(payload.url,payload.name,payload.page);}});
+  pdfChannel.on('broadcast',{event:'pdf-page'},({payload})=>{if(!isTeacher && pdfDoc) renderPdfPage(payload.page);});
+  pdfChannel.subscribe();
+
   $('#recordStop').addEventListener('click',stopRecording);
   $('#leaveRoom').addEventListener('click',()=>{
     const leave = () => {
