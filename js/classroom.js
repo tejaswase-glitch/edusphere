@@ -19,7 +19,8 @@ async function showPdf(url, name, page = 1) {
     const lib = await loadPdfJs();
     pdfDoc = await lib.getDocument({url}).promise;
     currentPdfUrl = url;
-    $('#pdfViewer').classList.add('active');\n    document.querySelector('.room-shell')?.classList.add('pdf-active');
+    $('#pdfViewer').classList.add('active');
+    document.querySelector('.room-shell')?.classList.add('pdf-active');
     $('#pdfName').textContent = name || 'Class PDF';
     await renderPdfPage(Math.min(Math.max(1, Number(page) || 1), pdfDoc.numPages));
     pdfStatus('PDF is being presented in this class.');
