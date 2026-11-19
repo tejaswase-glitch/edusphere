@@ -7,7 +7,7 @@ let roomToastTimer = null;
 const toast = (s) => { const el=$('#roomToast'); if(!el)return; el.textContent=s; el.classList.add('show'); clearTimeout(roomToastTimer); roomToastTimer=setTimeout(()=>el.classList.remove('show'),4000); };
 let api = null, connection = null, room = null, recorder = null, streams = [], chunks = [], audioContext = null, objectUrl = null;
 let localTracks = [], localAudioTrack = null, localVideoTrack = null, remoteTrackNodes = new Map();
-let micStream = null, cameraStream = null, recordCanvas = null, recordFrame = 0, modeObserver = null, recordVideo = null, cameraFacing = 'environment';
+let micStream = null, cameraStream = null, recordCanvas = null, recordCanvasStream = null, recordFrame = 0, modeObserver = null, recordVideo = null, cameraFacing = 'environment';
 let pdfDoc = null, pdfPage = 1, pdfChannel = null, pdfJs = null, isTeacher = false, currentPdfUrl = null, pendingPdfFile = null;
 const incomingPdfTransfers = new Map();
 function applyCameraOrientation(track=localVideoTrack){
@@ -163,6 +163,8 @@ function stopTracks() {
   // These streams wrap Jitsi-owned tracks. Never stop them here: Jitsi must
   // keep the teacher camera and microphone alive after recording ends.
   streams=[];
+  try { recordCanvasStream?.getTracks?.().forEach(t=>t.stop()); } catch {}
+  recordCanvasStream=null;
   micStream=null; cameraStream=null;
   if (audioContext) { audioContext.close().catch(()=>{}); audioContext=null; }
 }
@@ -237,6 +239,7 @@ function finishRecording() {
 }
 async function startRecording() {
   if (!confirm('Record the teacher microphone and teaching view only (PDF slides or whiteboard camera)? Student audio/video will not be included. Make sure everyone has consented.')) return;
+  recordingFinalized = false;
   $('#recordStart').disabled=true; $('#recordStart').textContent='Starting…';
   status('Consent accepted. Checking recording support…');
   if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
@@ -296,8 +299,8 @@ async function startRecording() {
     // Android Chrome may reject MediaRecorder.start() if canvas.captureStream()
     // has not produced a frame yet. Draw synchronously before creating the stream.
     drawTeachingFrame();
-    const canvasStream=recordCanvas.captureStream(30);
-    const canvasVideoTrack=canvasStream.getVideoTracks()[0];
+    recordCanvasStream=recordCanvas.captureStream(30);
+    const canvasVideoTrack=recordCanvasStream.getVideoTracks()[0];
     if(!canvasVideoTrack || canvasVideoTrack.readyState!=='live') throw new Error('The browser could not create a live recording video track. Update Chrome and retry.');
     const output=new MediaStream([canvasVideoTrack,...micStream.getAudioTracks()]);
     if(output.getVideoTracks().length!==1 || output.getAudioTracks().length!==1) throw new Error('The recording stream is incomplete. Check camera and microphone permissions.');
