@@ -4,7 +4,8 @@ const params = new URLSearchParams(location.search);
 const classId = params.get('classId');
 const status = (s) => { $('#roomStatus').textContent = s; };
 const toast = (s) => { $('#roomToast').textContent = s; };
-let api = null, recorder = null, streams = [], chunks = [], audioContext = null, objectUrl = null;
+let api = null, connection = null, room = null, recorder = null, streams = [], chunks = [], audioContext = null, objectUrl = null;
+let localTracks = [], localAudioTrack = null, localVideoTrack = null, remoteTrackNodes = new Map();
 let micStream = null, cameraStream = null, recordCanvas = null, recordFrame = 0, modeObserver = null, recordVideo = null, cameraFacing = 'environment';
 let pdfDoc = null, pdfPage = 1, pdfChannel = null, pdfJs = null, isTeacher = false, currentPdfUrl = null;
 const pdfStatus = (s) => { $('#pdfStatus').textContent = s; };
@@ -53,36 +54,17 @@ async function sendPdfState(event, payload) {
 
 function pdfMode() { return $('#pdfViewer').classList.contains('active') && $('#pdfCanvas').width > 0; }
 async function ensureCamera() {
-  if (cameraStream?.getVideoTracks().some(t=>t.readyState==='live')) return cameraStream;
-  try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{exact:cameraFacing}},audio:false});
-  } catch (e) {
-    cameraStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:cameraFacing}},audio:false});
+  if (!localVideoTrack || localVideoTrack.isEnded()) throw new Error('The shared Jitsi camera track is unavailable. Turn the classroom camera on and retry.');
+  if (!cameraStream || !cameraStream.getVideoTracks().some(t=>t.readyState==='live')) {
+    cameraStream = new MediaStream([localVideoTrack.getTrack().clone()]);
+    streams.push(cameraStream);
   }
-  streams.push(cameraStream);
   if (recordVideo) { recordVideo.srcObject=cameraStream; await recordVideo.play(); }
   return cameraStream;
 }
-async function switchRecordingCamera() {
-  if (recorder?.state !== 'recording') { status('Start recording before switching the camera.'); return; }
-  const next = cameraFacing === 'environment' ? 'user' : 'environment';
-  try {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(t=>t.stop());
-      streams = streams.filter(s=>s!==cameraStream);
-      cameraStream = null;
-    }
-    cameraFacing = next;
-    await ensureCamera();
-    status('Camera switched to ' + (next==='user'?'front/selfie':'back/rear') + ' camera. This view will be recorded when the PDF is closed.');
-  } catch(e) {
-    cameraFacing = next==='user'?'environment':'user';
-    status('Could not switch camera: ' + (e?.message || String(e)) + '. Check Chrome camera permission.');
-  }
-}
+
 function stopTracks() {
   if (recordVideo) { recordVideo.remove(); recordVideo=null; }
-  $('#switchCamera')?.classList.add('hidden');
   if (recordFrame) cancelAnimationFrame(recordFrame);
   recordFrame=0;
   if (modeObserver) modeObserver.disconnect();
@@ -125,11 +107,11 @@ async function startRecording() {
   }
   let video=null;
   try {
-    status('Requesting microphone permission. Please allow the microphone popup if it appears…');
-    micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false});
-    status('Microphone allowed. Preparing the teaching video…');
+    status('Preparing the shared Jitsi microphone and camera tracks…');
+    if (!localAudioTrack || !localVideoTrack) throw new Error('The shared classroom camera and microphone are not ready. Rejoin the class and allow both permissions.');
+    micStream = new MediaStream([localAudioTrack.getTrack().clone()]);
     streams.push(micStream);
-    if (!pdfMode()) { status('Requesting camera permission for whiteboard recording…'); await ensureCamera(); }
+    if (!pdfMode()) await ensureCamera();
     video=document.createElement('video'); video.muted=true; video.playsInline=true; video.autoplay=true;
     video.setAttribute('aria-label','Teacher camera preview');
     video.style.cssText='position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:0';
@@ -139,14 +121,14 @@ async function startRecording() {
       video.srcObject=cameraStream;
       await video.play();
       if(video.readyState<2) await new Promise((resolve,reject)=>{
-        const timer=setTimeout(()=>reject(new Error('Camera opened but no video frames arrived. Turn the Jitsi camera off and retry.')),6000);
+        const timer=setTimeout(()=>reject(new Error('Shared Jitsi camera opened but no video frames arrived. Check that your classroom camera is on.')),6000);
         const ready=()=>{clearTimeout(timer);resolve();};
         const failed=()=>{clearTimeout(timer);reject(new Error('Camera video could not be read by the recorder.'));};
         video.addEventListener('loadeddata',ready,{once:true});
         video.addEventListener('error',failed,{once:true});
         if(video.readyState>=2) ready();
       });
-      if(!video.videoWidth||!video.videoHeight) throw new Error('Camera is active but video frames are unavailable. Turn the Jitsi camera off and retry.');
+      if(!video.videoWidth||!video.videoHeight) throw new Error('The shared Jitsi camera has no video frames. Check the camera control and retry.');
     }
     recordCanvas=document.createElement('canvas'); recordCanvas.width=854; recordCanvas.height=480;
     const ctx=recordCanvas.getContext('2d');
@@ -165,7 +147,8 @@ async function startRecording() {
         ctx.fillStyle='#263858';ctx.font='bold 32px system-ui';ctx.textAlign='center';
         ctx.fillText('Waiting for whiteboard camera…',427,240);
       }
-      if(cameraStream) cameraStream.getVideoTracks().forEach(t=>t.enabled=!pdfMode());
+      if(cameraStream) cameraStream.getVideoTracks().forEach(t=>t.enabled=!!localVideoTrack?.getTrack()?.enabled && !pdfMode());
+      if(micStream) micStream.getAudioTracks().forEach(t=>t.enabled=!!localAudioTrack?.getTrack()?.enabled);
       recordFrame=requestAnimationFrame(paint);
     };
     const canvasStream=recordCanvas.captureStream(8);
@@ -185,7 +168,7 @@ async function startRecording() {
     });
     modeObserver.observe($('#pdfViewer'),{attributes:true,attributeFilter:['class']});
     $('#recordStart').disabled=true; $('#recordStart').textContent='● Recording'; $('#recordStop').disabled=false; $('#recordStop').classList.remove('hidden');
-    $('#switchCamera').classList.remove('hidden');
+    $('#switchCamera').classList.add('hidden');
     status(pdfMode()?'RECORDING: PDF slides + teacher microphone. Close the PDF to switch to the whiteboard camera.':'RECORDING: whiteboard camera + teacher microphone. Open a PDF to switch to slide recording.');
   } catch(e) {
     video?.remove(); recordVideo=null; stopTracks();
@@ -229,7 +212,7 @@ function bindLeaveButton() {
       stopRecording();
       setTimeout(finish, 1800);
     } else {
-      try { api?.executeCommand('hangup'); } catch {}
+      try { await room?.leave(); } catch {} try { connection?.disconnect(); } catch {}
       finish();
     }
   });
@@ -284,16 +267,64 @@ async function init() {
   pdfChannel.subscribe();
 
   $('#recordStop').addEventListener('click',stopRecording);
-  $('#switchCamera').addEventListener('click',switchRecordingCamera);
+  
 
   try {
     const {data:ticket,error:ticketError}=await sb.functions.invoke('jaas-token',{body:{classId}});
     if(ticketError){let m=ticketError.message;try{m=(await ticketError.context.json()).error||m}catch{}throw new Error(m)}
-    if(!ticket?.token || !ticket?.roomName) throw new Error(ticket?.error || 'Secure meeting token missing.');
-    await new Promise((resolve,reject)=>{if(window.JitsiMeetExternalAPI)return resolve();const s=document.createElement('script');s.src='https://8x8.vc/external_api.js';s.onload=resolve;s.onerror=()=>reject(new Error('Could not load the meeting service.'));document.head.appendChild(s)});
-    api=new window.JitsiMeetExternalAPI('8x8.vc',{roomName:ticket.roomName,jwt:ticket.token,parentNode:$('#jitsiFrame'),width:'100%',height:'100%',userInfo:{displayName:profile.full_name||'EduSphere participant'},configOverwrite:{prejoinConfig:{enabled:false},disableInitialGUM:true,startWithAudioMuted:true,startWithVideoMuted:true,toolbarButtons:['microphone','camera','desktop','chat','participants-pane','raisehand','tileview','fullscreen','settings','hangup','select-background','videoquality']},interfaceConfigOverwrite:{MOBILE_APP_PROMO:false,SHOW_JITSI_WATERMARK:false}});
-    api.addListener('videoConferenceJoined',()=>status('Connected · Live classroom'));
-    api.addListener('readyToClose',()=>{if(recorder?.state==='recording')stopRecording();status('Meeting ended. You can leave this page.');});
+    if(!ticket?.token || !ticket?.roomName || !ticket?.appId) throw new Error(ticket?.error || 'Secure meeting token missing.');
+    await new Promise((resolve,reject)=>{if(window.JitsiMeetJS)return resolve();const s=document.createElement('script');s.src='https://8x8.vc/libs/lib-jitsi-meet.min.js';s.onload=()=>window.JitsiMeetJS?resolve():reject(new Error('Jitsi low-level SDK did not initialize.'));s.onerror=()=>reject(new Error('Could not load the Jitsi meeting SDK.'));document.head.appendChild(s)});
+    JitsiMeetJS.init({disableAudioLevels:true});
+    status('Opening the shared classroom camera and microphone… Please allow both permissions.');
+    localTracks=await JitsiMeetJS.createLocalTracks({devices:['audio','video'],constraints:{video:{height:{ideal:480,max:720},width:{ideal:854,max:1280}}}});
+    localAudioTrack=localTracks.find(t=>t.getType()==='audio');
+    localVideoTrack=localTracks.find(t=>t.getType()==='video');
+    if(!localAudioTrack || !localVideoTrack) throw new Error('Could not create both classroom camera and microphone tracks.');
+    const preview=$('#localPreview');
+    await localVideoTrack.attach(preview);
+    const roomOnly=ticket.roomName.slice(ticket.roomName.indexOf('/')+1);
+    const options={
+      hosts:{domain:'8x8.vc',muc:'conference.'+ticket.appId+'.8x8.vc',focus:'focus.8x8.vc'},
+      serviceUrl:'wss://8x8.vc/'+ticket.appId+'/xmpp-websocket?room='+encodeURIComponent(roomOnly),
+      conferenceRequestUrl:'https://8x8.vc/'+ticket.appId+'/conference-request/v1?room='+encodeURIComponent(roomOnly),
+      websocketKeepAliveUrl:'https://8x8.vc/'+ticket.appId+'/_unlock?room='+encodeURIComponent(roomOnly),
+      p2p:{enabled:true},disableAudioLevels:true
+    };
+    connection=new JitsiMeetJS.JitsiConnection(null,ticket.token,options);
+    connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,async()=>{
+      room=connection.initJitsiConference(roomOnly,{openBridgeChannel:true});
+      room.on(JitsiMeetJS.events.conference.TRACK_ADDED,track=>{
+        if(track.isLocal()) return;
+        const type=track.getType(), node=document.createElement(type==='video'?'video':'audio');
+        node.autoplay=true;node.playsInline=true;
+        if(type==='video'){
+          const tile=document.createElement('div');tile.className='participant-tile';tile.dataset.track=track.getId();
+          const name=document.createElement('span');name.textContent='Participant';
+          tile.append(node,name);$('#participantGrid').append(tile);remoteTrackNodes.set(track.getId(),{node,tile});
+        } else {node.style.display='none';document.body.append(node);remoteTrackNodes.set(track.getId(),{node,tile:null});}
+        track.attach(node);
+      });
+      room.on(JitsiMeetJS.events.conference.TRACK_REMOVED,track=>{
+        const item=remoteTrackNodes.get(track.getId());if(item){track.detach(item.node);item.tile?.remove();item.node.remove();remoteTrackNodes.delete(track.getId());}
+      });
+      room.on(JitsiMeetJS.events.conference.CONFERENCE_JOINED,()=>status('Connected · Live classroom. Your camera and microphone are shared with the class.'));
+      room.on(JitsiMeetJS.events.conference.CONFERENCE_LEFT,()=>status('You left the live classroom.'));
+      try{await Promise.all(localTracks.map(t=>room.addTrack(t)));await room.join();}
+      catch(e){status('Could not join the live room: '+(e?.message||e));}
+    });
+    connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_FAILED,()=>status('Jitsi connection failed. Check your internet and try again.'));
+    connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_DISCONNECTED,()=>status('Jitsi disconnected.'));
+    connection.connect();
+    $('#toggleMic').addEventListener('click',async()=>{
+      try{if(localAudioTrack.isMuted()){await localAudioTrack.unmute();$('#toggleMic').textContent='Mute Mic';}else{await localAudioTrack.mute();$('#toggleMic').textContent='Unmute Mic';}
+      if(micStream)micStream.getAudioTracks().forEach(t=>t.enabled=!localAudioTrack.isMuted());}
+      catch(e){status('Microphone control failed: '+(e?.message||e));}
+    });
+    $('#toggleCamera').addEventListener('click',async()=>{
+      try{if(localVideoTrack.isMuted()){await localVideoTrack.unmute();$('#toggleCamera').textContent='Turn Camera Off';}else{await localVideoTrack.mute();$('#toggleCamera').textContent='Turn Camera On';}
+      if(cameraStream)cameraStream.getVideoTracks().forEach(t=>t.enabled=!localVideoTrack.isMuted());}
+      catch(e){status('Camera control failed: '+(e?.message||e));}
+    });
   } catch(e) { status(e.message || 'Could not connect to the classroom.'); }
 }
 window.addEventListener('beforeunload',e=>{if(recorder?.state==='recording'){e.preventDefault();e.returnValue='';}});
