@@ -378,6 +378,7 @@ async function init() {
   $('#enableMic')?.addEventListener('click',enableStudentMic);
   $('#menuToggle')?.addEventListener('click',()=>{const menu=$('#controlMenu');menu?.classList.toggle('open');$('#menuToggle')?.setAttribute('aria-expanded',menu?.classList.contains('open')?'true':'false');});
   $('#showChat')?.addEventListener('click',()=>{const p=$('#chatPanel');const opening=p?.classList.contains('hidden');$('#rosterPanel')?.classList.add('hidden');p?.classList.toggle('hidden');if(opening)setTimeout(()=>$('#chatInput')?.focus(),80);});
+  $('#closeChat')?.addEventListener('click',()=>{$('#chatPanel')?.classList.add('hidden');});
   $('#showRoster')?.addEventListener('click',()=>{const p=$('#rosterPanel');const opening=p?.classList.contains('hidden');$('#chatPanel')?.classList.add('hidden');p?.classList.toggle('hidden');});
   document.addEventListener('click',e=>{
     if(!e.target.closest('.menu-wrap')){$('#controlMenu')?.classList.remove('open');$('#menuToggle')?.setAttribute('aria-expanded','false');}
