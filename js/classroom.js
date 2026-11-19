@@ -29,9 +29,16 @@ async function showPdf(url, name, page = 1) {
 async function renderPdfPage(n) {
   if (!pdfDoc) return;
   pdfPage = Math.min(Math.max(1, n), pdfDoc.numPages);
-  const page = await pdfDoc.getPage(pdfPage), viewport = page.getViewport({scale:1.35});
+  const page = await pdfDoc.getPage(pdfPage);
+  const wrap = $('.pdf-canvas-wrap');
+  const availableWidth = Math.max(240, wrap.clientWidth - 12);
+  const availableHeight = Math.max(240, wrap.clientHeight - 12);
+  const base = page.getViewport({scale:1});
+  const scale = Math.min(availableWidth / base.width, availableHeight / base.height);
+  const viewport = page.getViewport({scale:Math.max(.25,scale)});
   const canvas = $('#pdfCanvas'), ctx = canvas.getContext('2d');
-  canvas.width = viewport.width; canvas.height = viewport.height;
+  canvas.width = Math.floor(viewport.width); canvas.height = Math.floor(viewport.height);
+  canvas.style.width = canvas.width + 'px'; canvas.style.height = canvas.height + 'px';
   await page.render({canvasContext:ctx,viewport}).promise;
   $('#pdfPage').textContent = 'Page ' + pdfPage + ' / ' + pdfDoc.numPages;
   $('#pdfPrev').disabled = pdfPage <= 1; $('#pdfNext').disabled = pdfPage >= pdfDoc.numPages;
@@ -152,19 +159,15 @@ async function init() {
     button.disabled = true;
     button.textContent = 'Leaving…';
     const destination = new URL('./', location.href).href;
-    const finishLeave = () => {
-      try { if (pdfChannel) sb.removeChannel(pdfChannel); } catch {}
-      try { api?.dispose(); } catch {}
-      location.replace(destination);
-    };
+    const goBack = () => { location.href = destination; };
     if (recorder?.state === 'recording') {
-      recorder.addEventListener('stop', finishLeave, {once:true});
+      recorder.addEventListener('stop', goBack, {once:true});
       stopRecording();
-      setTimeout(finishLeave, 2500);
-      return;
+      setTimeout(goBack, 1500);
+    } else {
+      try { api?.executeCommand('hangup'); } catch {}
+      goBack();
     }
-    try { api?.executeCommand('hangup'); } catch {}
-    setTimeout(finishLeave, 250);
   });
   try {
     const {data:ticket,error:ticketError}=await sb.functions.invoke('jaas-token',{body:{classId}});
