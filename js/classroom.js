@@ -104,7 +104,8 @@ async function init() {
   state.profile = profile;
   const {data:c,error} = await sb.from('live_classes').select('id,title,subject,course_id,provider,status,created_by,is_published').eq('id',classId).maybeSingle();
   if (error || !c || c.provider !== 'jitsi' || c.status !== 'scheduled') { status('This class is unavailable.'); return; }
-  const teacher = profile.role === 'admin' || (profile.role === 'teacher' && c.created_by === profile.id);\n  isTeacher = teacher;
+  const teacher = profile.role === 'admin' || (profile.role === 'teacher' && c.created_by === profile.id);
+  isTeacher = teacher;
   if (profile.role === 'teacher' && !teacher) { status('Teachers can enter only their own classes.'); return; }
   if (profile.role === 'student' && !c.is_published) { status('This class is not published for students.'); return; }
   $('#roomTitle').textContent = c.title || 'EduSphere Live Classroom';
