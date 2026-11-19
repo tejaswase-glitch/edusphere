@@ -20,7 +20,7 @@ function redirectOk(r: unknown): string | undefined {
   try {
     const u = new URL(String(r));
     const allowed = (Deno.env.get('ALLOWED_REDIRECT_ORIGINS') || '').split(',').map((s) => s.trim()).filter(Boolean);
-    if (allowed.length && !allowed.includes(u.origin)) return undefined;
+    if (!allowed.length || !allowed.includes(u.origin)) return undefined;
     if (u.protocol !== 'https:' && u.hostname !== 'localhost') return undefined;
     return u.toString();
   } catch { return undefined; }
@@ -89,6 +89,12 @@ Deno.serve(async (req) => {
         return json({ error: profileError.message }, 400);
       }
       const { error: inviteError } = await caller.auth.resetPasswordForEmail(email, { redirectTo });
+      await admin.from('audit_log').insert({
+        action: 'created', entity_type: 'administrator', entity_id: data.user.id,
+        entity_title: full_name, performed_by: user.id,
+        performer_name: me.full_name || 'admin', performer_role: 'admin',
+        details: { email, email_sent: !inviteError },
+      });
       if (inviteError) {
         return json({ ok: true, id: data.user.id, emailSent: false, note: 'Administrator account created, but the password-setup email failed: ' + inviteError.message });
       }
