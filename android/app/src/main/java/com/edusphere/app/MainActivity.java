@@ -252,19 +252,111 @@ public class MainActivity extends Activity {
             });
     }
 
+    private GradientDrawable roundedBackground(int color, int radiusDp) {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(color);
+        bg.setCornerRadius(dp(radiusDp));
+        return bg;
+    }
+
     private void showExitDialog() {
-        AlertDialog dialog = new AlertDialog.Builder(this)
-            .setTitle("Exit EduSphere?")
-            .setMessage("Are you sure you want to leave your learning space?")
-            .setNegativeButton("Cancel", (d, which) -> d.dismiss())
-            .setPositiveButton("Exit", (d, which) -> finish())
-            .setCancelable(true)
-            .create();
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setGravity(Gravity.CENTER_HORIZONTAL);
+        panel.setPadding(dp(24), dp(26), dp(24), dp(20));
+        GradientDrawable panelBg = new GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{Color.rgb(246, 247, 255), Color.rgb(255, 255, 255)});
+        panelBg.setCornerRadius(dp(26));
+        panel.setBackground(panelBg);
+
+        TextView icon = new TextView(this);
+        icon.setText("↗");
+        icon.setTextColor(Color.WHITE);
+        icon.setTextSize(30);
+        icon.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        icon.setGravity(Gravity.CENTER);
+        GradientDrawable iconBg = new GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            new int[]{Color.rgb(91, 75, 255), Color.rgb(48, 111, 232)});
+        iconBg.setCornerRadius(dp(22));
+        icon.setBackground(iconBg);
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(66), dp(66));
+        iconParams.bottomMargin = dp(18);
+        panel.addView(icon, iconParams);
+
+        TextView title = new TextView(this);
+        title.setText("Leaving EduSphere?");
+        title.setTextColor(Color.rgb(25, 32, 75));
+        title.setTextSize(22);
+        title.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        title.setGravity(Gravity.CENTER);
+        panel.addView(title, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        TextView message = new TextView(this);
+        message.setText("Are you sure you want to exit? Your learning space will be right here when you return.");
+        message.setTextColor(Color.rgb(100, 105, 132));
+        message.setTextSize(14);
+        message.setGravity(Gravity.CENTER);
+        message.setLineSpacing(dp(3), 1.0f);
+        LinearLayout.LayoutParams messageParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        messageParams.topMargin = dp(10);
+        messageParams.bottomMargin = dp(24);
+        panel.addView(message, messageParams);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setGravity(Gravity.CENTER);
+        actions.setWeightSum(2);
+
+        TextView cancel = new TextView(this);
+        cancel.setText("Stay here");
+        cancel.setTextColor(Color.rgb(65, 76, 145));
+        cancel.setTextSize(15);
+        cancel.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        cancel.setGravity(Gravity.CENTER);
+        cancel.setBackground(roundedBackground(Color.rgb(232, 235, 250), 15));
+        cancel.setPadding(dp(8), 0, dp(8), 0);
+        LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(0, dp(50), 1);
+        cancelParams.rightMargin = dp(8);
+        actions.addView(cancel, cancelParams);
+
+        TextView exit = new TextView(this);
+        exit.setText("Exit app");
+        exit.setTextColor(Color.WHITE);
+        exit.setTextSize(15);
+        exit.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        exit.setGravity(Gravity.CENTER);
+        GradientDrawable exitBg = new GradientDrawable(
+            GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{Color.rgb(238, 76, 105), Color.rgb(211, 57, 91)});
+        exitBg.setCornerRadius(dp(15));
+        exit.setBackground(exitBg);
+        exit.setPadding(dp(8), 0, dp(8), 0);
+        LinearLayout.LayoutParams exitParams = new LinearLayout.LayoutParams(0, dp(50), 1);
+        exitParams.leftMargin = dp(8);
+        actions.addView(exit, exitParams);
+
+        panel.addView(actions, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        AlertDialog dialog = new AlertDialog.Builder(this).setView(panel).setCancelable(true).create();
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        exit.setOnClickListener(v -> {
+            dialog.dismiss();
+            finish();
+        });
         dialog.setOnShowListener(v -> {
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.rgb(64, 80, 190));
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.rgb(220, 55, 75));
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setAllCaps(false);
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setAllCaps(false);
+            if (dialog.getWindow() != null) {
+                dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+                dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                WindowManager.LayoutParams lp = dialog.getWindow().getAttributes();
+                lp.dimAmount = 0.62f;
+                lp.width = getResources().getDisplayMetrics().widthPixels - dp(48);
+                dialog.getWindow().setAttributes(lp);
+            }
         });
         dialog.show();
     }
