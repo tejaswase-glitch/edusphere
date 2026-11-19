@@ -59,9 +59,9 @@ async function sharePdfTemporarily(file){
  pendingPdfFile=file;$('#pdfSave').classList.remove('hidden');$('#pdfSave').disabled=false;$('#pdfSave').textContent='Save to EduSphere';
  await showPdf(URL.createObjectURL(file),file.name,1);
  const id=crypto.randomUUID(),bytes=new Uint8Array(await file.arrayBuffer()),chunkSize=12000,total=Math.ceil(bytes.length/chunkSize);
- room.sendEndpointMessage(null,{eduspherePdf:'start',id:id,name:file.name,size:file.size,total:total});
- for(let index=0;index<total;index++){const chunk=bytes.subarray(index*chunkSize,Math.min(bytes.length,(index+1)*chunkSize));room.sendEndpointMessage(null,{eduspherePdf:'chunk',id:id,index:index,data:pdfBytesToBase64(chunk)});await new Promise(resolve=>setTimeout(resolve,40));}
- room.sendEndpointMessage(null,{eduspherePdf:'end',id:id});pdfStatus('Shared temporarily. Not saved to EduSphere.');
+ room.sendEndpointMessage('',{eduspherePdf:'start',id:id,name:file.name,size:file.size,total:total});
+ for(let index=0;index<total;index++){const chunk=bytes.subarray(index*chunkSize,Math.min(bytes.length,(index+1)*chunkSize));room.sendEndpointMessage('',{eduspherePdf:'chunk',id:id,index:index,data:pdfBytesToBase64(chunk)});await new Promise(resolve=>setTimeout(resolve,40));}
+ room.sendEndpointMessage('',{eduspherePdf:'end',id:id});pdfStatus('Shared temporarily. Not saved to EduSphere.');
 }
 async function savePendingPdf(){
  if(!pendingPdfFile)return pdfStatus('No PDF selected to save.');
