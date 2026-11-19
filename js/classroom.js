@@ -82,6 +82,7 @@ function finishRecording() {
   $('#recordStart').disabled = false;
   $('#recordStart').textContent = '● Start Recording';
   $('#recordStop').disabled = true;
+  $('#recordStop').textContent = 'Stop & Save';
   $('#recordStop').classList.add('hidden');
   stopTracks();
   if (!blob.size) {
@@ -137,7 +138,7 @@ async function startRecording() {
     }
     recordCanvas=document.createElement('canvas'); recordCanvas.width=854; recordCanvas.height=480;
     const ctx=recordCanvas.getContext('2d');
-    const paint=()=>{
+    const drawTeachingFrame=()=>{
       ctx.fillStyle='#fff'; ctx.fillRect(0,0,854,480);
       if(pdfMode()){
         const source=$('#pdfCanvas');
@@ -152,19 +153,39 @@ async function startRecording() {
         ctx.fillStyle='#263858';ctx.font='bold 32px system-ui';ctx.textAlign='center';
         ctx.fillText('Waiting for whiteboard camera…',427,240);
       }
+    };
+    const paint=()=>{
+      drawTeachingFrame();
       // Do not toggle source-track enabled state here: that would mute the live
       // classroom for students while recording a PDF. The canvas alone changes view.
       recordFrame=requestAnimationFrame(paint);
     };
+    // Android Chrome may reject MediaRecorder.start() if canvas.captureStream()
+    // has not produced a frame yet. Draw synchronously before creating the stream.
+    drawTeachingFrame();
     const canvasStream=recordCanvas.captureStream(8);
-    const output=new MediaStream([...canvasStream.getVideoTracks(),...micStream.getAudioTracks()]);
-    const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
-    recorder=new MediaRecorder(output,{...(mime?{mimeType:mime}:{}),videoBitsPerSecond:400000,audioBitsPerSecond:64000});
+    const canvasVideoTrack=canvasStream.getVideoTracks()[0];
+    if(!canvasVideoTrack || canvasVideoTrack.readyState!=='live') throw new Error('The browser could not create a live recording video track. Update Chrome and retry.');
+    const output=new MediaStream([canvasVideoTrack,...micStream.getAudioTracks()]);
+    if(output.getVideoTracks().length!==1 || output.getAudioTracks().length!==1) throw new Error('The recording stream is incomplete. Check camera and microphone permissions.');
     chunks=[];
-    recorder.ondataavailable=e=>{if(e.data && e.data.size)chunks.push(e.data);};
-    recorder.onerror=e=>{status('Recorder error: ' + (e?.error?.message || 'The browser could not encode this video.'));};
-    recorder.onstop=()=>{video?.remove();finishRecording();};
-    recorder.start(1000); paint();
+    const mimeCandidates=['video/webm;codecs=vp8,opus','video/webm;codecs=vp9,opus','video/webm'];
+    const supportedMimes=mimeCandidates.filter(t=>MediaRecorder.isTypeSupported(t));
+    const recorderOptions=[...supportedMimes.map(mimeType=>({mimeType,videoBitsPerSecond:400000,audioBitsPerSecond:64000})),{videoBitsPerSecond:400000,audioBitsPerSecond:64000},{}];
+    let startError=null;
+    for(const options of recorderOptions){
+      try{
+        recorder=new MediaRecorder(output,options);
+        recorder.ondataavailable=e=>{if(e.data && e.data.size)chunks.push(e.data);};
+        recorder.onerror=e=>{status('Recorder error: ' + (e?.error?.message || 'The browser could not encode this video.'));};
+        recorder.onstop=()=>{video?.remove();finishRecording();};
+        recorder.start(1000);
+        startError=null;
+        break;
+      }catch(err){startError=err;recorder=null;}
+    }
+    if(startError) throw new Error('Android browser could not start the video encoder ('+(startError.message||'unsupported video source')+'). Try updating Chrome.'); 
+    paint();
     modeObserver=new MutationObserver(async()=>{
       if(!pdfMode()&&!cameraStream&&recorder?.state==='recording'){
         try { const s=await ensureCamera(); video.srcObject=s; await video.play().catch(()=>{}); }
