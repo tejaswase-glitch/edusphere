@@ -191,15 +191,40 @@ function finishRecording() {
   downloadButton.type = 'button';
   downloadButton.textContent = '⬇  DOWNLOAD LECTURE VIDEO';
   downloadButton.style.cssText = 'display:block;position:relative;z-index:1;pointer-events:auto;width:100%;min-height:60px;margin:14px 0 0;padding:16px 12px;border:0;border-radius:12px;background:#a8edc0;color:#123d25;font-size:17px;font-weight:900;touch-action:manipulation;cursor:pointer';
-  downloadButton.addEventListener('click', () => {
-    const link = document.createElement('a');
-    link.href = objectUrl;
-    link.download = 'edusphere-lecture-' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.webm';
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    downloadButton.textContent = '✓ DOWNLOAD REQUESTED — CHECK CHROME DOWNLOADS';
+  downloadButton.addEventListener('click', async () => {
+    const fileName = 'edusphere-lecture-' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.webm';
+    downloadButton.disabled = true;
+    downloadButton.textContent = 'PREPARING VIDEO…';
+    try {
+      if (window.EduSphereNative && typeof window.EduSphereNative.beginRecordingSave === 'function') {
+        window.EduSphereNative.beginRecordingSave(blob.type || 'video/webm');
+        const buffer = await blob.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        const chunkSize = 48 * 1024;
+        for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+          let binary = '';
+          const part = bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length));
+          for (let i = 0; i < part.length; i++) binary += String.fromCharCode(part[i]);
+          window.EduSphereNative.appendRecordingChunk(btoa(binary));
+        }
+        window.EduSphereNative.finishRecordingSave(fileName);
+        downloadButton.textContent = '✓ CHOOSE A FOLDER TO SAVE YOUR VIDEO';
+      } else {
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = fileName;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        downloadButton.textContent = '✓ DOWNLOAD REQUESTED — CHECK DOWNLOADS';
+      }
+    } catch (error) {
+      if (window.EduSphereNative) window.EduSphereNative.cancelRecordingSave();
+      downloadButton.disabled = false;
+      downloadButton.textContent = '⬇  RETRY DOWNLOAD';
+      status('Could not prepare the recording for download. Please try again.');
+    }
   });
   panel.replaceChildren(message, downloadButton);
   status('Recording is ready. Tap Download Lecture Video to save it to your phone.');
