@@ -32,7 +32,7 @@ if (social.length) { $('#followBox').hidden = false; $('#followLinks').innerHTML
 
 
 // Homepage subjects are configured by Admin > Courses & Subjects.
-(async()=>{if(!sb)return;try{const subjects=(await getSubjects()).filter(s=>s.is_active),grid=$('#subjectGrid');grid.innerHTML=subjects.length?subjects.map((s,i)=>'<article class="subject-card" data-subject="'+esc(s.name)+'"><img src="assets/generic.svg" alt="" loading="lazy" width="400" height="300"><div><h3>'+esc(s.name)+'</h3><p class="sc-sub">'+esc(s.description||'Explore lessons and study materials')+'</p><button class="btn btn-play '+(i%2?'alt':'')+'" data-register type="button">Register to Watch</button></div></article>').join(''):'<p class="fine">Subjects will appear here when the Admin adds them.</p>';}catch(e){console.warn('Could not load admin subjects:',e);}})();
+(async()=>{if(!sb)return;try{const subjects=(await getSubjects()).filter(s=>s.is_active),grid=$('#subjectGrid');if(subjects.length)grid.innerHTML=subjects.map((s,i)=>'<article class="subject-card" data-subject="'+esc(s.name)+'"><img src="assets/generic.svg" alt="" loading="lazy" width="400" height="300"><div><h3>'+esc(s.name)+'</h3><p class="sc-sub">'+esc(s.description||'Explore lessons and study materials')+'</p><button class="btn btn-play '+(i%2?'alt':'')+'" data-register type="button">Register to Watch</button></div></article>').join('');}catch(e){console.warn('Could not load admin subjects:',e);}})();
 
 // Public lecture previews: reads ONLY the safe view (title, subject, short description, thumbnail). No video id, no links.
 (async () => {
