@@ -376,7 +376,7 @@ async function init() {
   $('#chatSend')?.addEventListener('click',sendChat);
   $('#chatInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat();}});
   $('#enableMic')?.addEventListener('click',enableStudentMic);
-  $('#menuToggle')?.addEventListener('click',()=>{const menu=$('#controlMenu');menu?.classList.toggle('open');$('#menuToggle')?.setAttribute('aria-expanded',menu?.classList.contains('open')?'true':'false');});
+  $('#menuToggle')?.addEventListener('click',()=>{const menu=$('#controlMenu');const opening=!menu?.classList.contains('open');if(opening){$('#chatPanel')?.classList.add('hidden');$('#rosterPanel')?.classList.add('hidden');}menu?.classList.toggle('open',opening);$('#menuToggle')?.setAttribute('aria-expanded',opening?'true':'false');});
   $('#showChat')?.addEventListener('click',()=>{const p=$('#chatPanel');const opening=p?.classList.contains('hidden');$('#rosterPanel')?.classList.add('hidden');p?.classList.toggle('hidden');if(opening)setTimeout(()=>$('#chatInput')?.focus(),80);});
   $('#closeChat')?.addEventListener('click',()=>{$('#chatPanel')?.classList.add('hidden');});
   $('#showRoster')?.addEventListener('click',()=>{const p=$('#rosterPanel');const opening=p?.classList.contains('hidden');$('#chatPanel')?.classList.add('hidden');p?.classList.toggle('hidden');});
