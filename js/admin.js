@@ -141,3 +141,33 @@ export async function auditView(el) {
   const extra = d => Object.entries(d || {}).filter(([k, v]) => v !== null && v !== '' && !['uploaded_by', 'created_by', 'file_path'].includes(k)).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(', ');
   $('#aBox', el).innerHTML = data.length ? `<div class="card table-wrap"><table><thead><tr><th>When</th><th>Action</th><th>Type</th><th>Item</th><th>Done by</th><th>Details</th></tr></thead><tbody>${data.map(r => { const [t, k] = ACTION[r.action] || [r.action, 'mute']; return `<tr><td>${esc(niceDate(r.created_at))}</td><td><span class="badge ${k}">${esc(t)}</span></td><td>${esc(TYPE[r.entity_type] || r.entity_type)}</td><td>${esc(r.entity_title || '')}</td><td>${esc(r.performer_name || '')}<br><small>${esc(r.performer_role || '')}</small></td><td><small>${esc(extra(r.details))}</small></td></tr>`; }).join('')}</tbody></table></div>` : empty('Nothing has been logged yet.');
 }
+
+
+export async function adminsView(el) {
+  let rows = [];
+  el.innerHTML = `<h1>Administrators</h1><p class="page-sub">Add another trusted administrator. They will receive an email to set their own password and will have full admin access.</p>
+    <div class="grid-form"><section class="card"><h3>Add administrator</h3><form id="adminAddForm" class="form" novalidate>
+      <label>Full name<input name="full_name" required maxlength="100" autocomplete="name"></label>
+      <label>Email address<input name="email" type="email" required maxlength="200" autocomplete="email"></label>
+      <button class="btn btn-primary" type="submit">Add administrator</button>
+      <p class="hint">A secure account is created. The new administrator sets their own password from the email link. Never share your own password.</p>
+    </form></section><section><h3>Current administrators</h3><div id="adminList"></div></section></div>`;
+  async function load() {
+    loading($('#adminList', el));
+    const { data, error } = await sb.from('profiles').select('id,full_name,email,status,created_at').eq('role','admin').order('created_at');
+    if (error) { $('#adminList', el).innerHTML = `<div class="note warn">${esc(error.message)}</div>`; return; }
+    rows = data || [];
+    $('#adminList', el).innerHTML = rows.length ? `<div class="list">${rows.map(a => `<div class="row"><div class="main"><b>${esc(a.full_name || 'Administrator')}</b><small>${esc(a.email || '')} · ${esc(niceDate(a.created_at))}</small></div><span class="badge ${a.status === 'approved' ? 'ok' : 'bad'}">${a.status === 'approved' ? 'Active' : esc(a.status)}</span></div>`).join('')}</div>` : empty('No administrators found.');
+  }
+  $('#adminAddForm', el).addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(e.currentTarget));
+    if (!f.full_name.trim() || !/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(f.email.trim())) return toast('Enter a full name and valid email address.','bad');
+    const btn = e.submitter; btn.disabled = true;
+    try {
+      const r = await adminFn({ action:'create_admin', full_name:f.full_name.trim(), email:f.email.trim(), redirectTo:location.origin + location.pathname });
+      toast(r.note || 'Administrator created.','good'); e.currentTarget.reset(); await load();
+    } catch (err) { fail(err); } finally { btn.disabled = false; }
+  });
+  await load();
+}
