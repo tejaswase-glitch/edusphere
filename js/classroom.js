@@ -129,35 +129,33 @@ async function startRecording() {
     if (!pdfMode()) { status('Requesting camera permission for whiteboard recording…'); await ensureCamera(); }
     video=document.createElement('video'); video.muted=true; video.playsInline=true; video.autoplay=true;
     video.setAttribute('aria-label','Teacher camera preview');
-    video.style.cssText='position:fixed;left:0;right:0;top:112px;bottom:36px;width:100vw;height:calc(100dvh - 148px);max-height:calc(100vh - 148px);object-fit:contain;z-index:24;border:0;border-radius:0;background:#000;box-shadow:none;transform:scaleX(1);display:block';
+    video.style.cssText='position:fixed;left:-10px;top:-10px;width:2px;height:2px;opacity:0;pointer-events:none;z-index:-1';
     recordVideo=video;
-    document.body.appendChild(video);
     if(cameraStream){video.srcObject=cameraStream;await video.play().catch(()=>{});}
-    recordCanvas=document.createElement('canvas'); recordCanvas.width=1280; recordCanvas.height=720;
+    recordCanvas=document.createElement('canvas'); recordCanvas.width=854; recordCanvas.height=480;
     const ctx=recordCanvas.getContext('2d');
     const paint=()=>{
-      ctx.fillStyle='#fff'; ctx.fillRect(0,0,1280,720);
-      if(video) video.style.display = pdfMode() ? 'none' : 'block';
+      ctx.fillStyle='#fff'; ctx.fillRect(0,0,854,480);
       if(pdfMode()){
         const source=$('#pdfCanvas');
         if(source.width>0&&source.height>0){
-          const scale=Math.min(1280/source.width,720/source.height),w=source.width*scale,h=source.height*scale;
-          ctx.drawImage(source,(1280-w)/2,(720-h)/2,w,h);
+          const scale=Math.min(854/source.width,480/source.height),w=source.width*scale,h=source.height*scale;
+          ctx.drawImage(source,(854-w)/2,(480-h)/2,w,h);
         }
       } else if(video.readyState>=2&&video.videoWidth){
-        const scale=Math.max(1280/video.videoWidth,720/video.videoHeight),w=video.videoWidth*scale,h=video.videoHeight*scale;
-        ctx.drawImage(video,(1280-w)/2,(720-h)/2,w,h);
+        const scale=Math.min(854/video.videoWidth,480/video.videoHeight),w=video.videoWidth*scale,h=video.videoHeight*scale;
+        ctx.drawImage(video,(854-w)/2,(480-h)/2,w,h);
       } else {
         ctx.fillStyle='#263858';ctx.font='bold 32px system-ui';ctx.textAlign='center';
-        ctx.fillText('Waiting for whiteboard camera…',640,360);
+        ctx.fillText('Waiting for whiteboard camera…',427,240);
       }
       if(cameraStream) cameraStream.getVideoTracks().forEach(t=>t.enabled=!pdfMode());
       recordFrame=requestAnimationFrame(paint);
     };
-    const canvasStream=recordCanvas.captureStream(12);
+    const canvasStream=recordCanvas.captureStream(8);
     const output=new MediaStream([...canvasStream.getVideoTracks(),...micStream.getAudioTracks()]);
     const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
-    recorder=new MediaRecorder(output,mime?{mimeType:mime}:undefined);
+    recorder=new MediaRecorder(output,{...(mime?{mimeType:mime}:{}),videoBitsPerSecond:400000,audioBitsPerSecond:64000});
     chunks=[];
     recorder.ondataavailable=e=>{if(e.data && e.data.size)chunks.push(e.data);};
     recorder.onerror=e=>{status('Recorder error: ' + (e?.error?.message || 'The browser could not encode this video.'));};
@@ -175,7 +173,7 @@ async function startRecording() {
     status(pdfMode()?'RECORDING: PDF slides + teacher microphone. Close the PDF to switch to the whiteboard camera.':'RECORDING: whiteboard camera + teacher microphone. Open a PDF to switch to slide recording.');
   } catch(e) {
     video?.remove(); recordVideo=null; stopTracks();
-    status('Recording did not start: ' + (e?.message || String(e)) + '. Check Chrome site permissions for microphone/camera, then try again.');
+    status('Recording did not start: ' + (e?.message || String(e)) + '. If your camera is already active in Jitsi, turn the Jitsi camera off, then try Start Recording again.');
     $('#recordStart').disabled=false;
     $('#recordStop').classList.add('hidden');
   }
@@ -260,6 +258,7 @@ async function init() {
   });
   $('#pdfPrev').addEventListener('click',async()=>{if(isTeacher && pdfDoc){await renderPdfPage(pdfPage-1);await sendPdfState('pdf-page',{page:pdfPage});}});
   $('#pdfNext').addEventListener('click',async()=>{if(isTeacher && pdfDoc){await renderPdfPage(pdfPage+1);await sendPdfState('pdf-page',{page:pdfPage});}});
+  $('#pdfClose').textContent='Stop PDF • Return to Live Class';
   $('#pdfClose').addEventListener('click',async()=>{if(isTeacher){$('#pdfViewer').classList.remove('active');document.querySelector('.room-shell')?.classList.remove('pdf-active');pdfDoc=null;await sendPdfState('pdf-presentation',{closed:true});}});
   pdfChannel = sb.channel('class-pdf-' + classId);
   pdfChannel.on('broadcast',{event:'pdf-presentation'},({payload})=>{if(!isTeacher){if(payload?.closed){$('#pdfViewer').classList.remove('active');pdfDoc=null;}else if(payload?.url) showPdf(payload.url,payload.name,payload.page);}});
