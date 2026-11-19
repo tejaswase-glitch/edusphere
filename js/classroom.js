@@ -60,7 +60,7 @@ async function ensureCamera() {
     cameraStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:cameraFacing}},audio:false});
   }
   streams.push(cameraStream);
-  if (recordVideo) { recordVideo.srcObject=cameraStream; await recordVideo.play().catch(()=>{}); }
+  if (recordVideo) { recordVideo.srcObject=cameraStream; await recordVideo.play(); }
   return cameraStream;
 }
 async function switchRecordingCamera() {
@@ -116,6 +116,7 @@ function finishRecording() {
 }
 async function startRecording() {
   if (!confirm('Record the teacher microphone and teaching view only (PDF slides or whiteboard camera)? Student audio/video will not be included. Make sure everyone has consented.')) return;
+  $('#recordStart').disabled=true; $('#recordStart').textContent='Starting…';
   status('Consent accepted. Checking recording support…');
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
     status('Recording is not supported in this browser. Open this classroom in the latest Chrome browser.'); return;
@@ -129,9 +130,19 @@ async function startRecording() {
     if (!pdfMode()) { status('Requesting camera permission for whiteboard recording…'); await ensureCamera(); }
     video=document.createElement('video'); video.muted=true; video.playsInline=true; video.autoplay=true;
     video.setAttribute('aria-label','Teacher camera preview');
-    video.style.cssText='position:fixed;left:-10px;top:-10px;width:2px;height:2px;opacity:0;pointer-events:none;z-index:-1';
+    video.style.cssText='position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:0';
+    document.body.appendChild(video);
     recordVideo=video;
-    if(cameraStream){video.srcObject=cameraStream;await video.play().catch(()=>{});}
+    if(cameraStream){
+      video.srcObject=cameraStream;
+      await video.play();
+      if(video.readyState<2) await new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>reject(new Error('Camera opened but no video frames arrived. Turn the Jitsi camera off and retry.')),6000);
+        video.addEventListener('loadeddata',()=>{clearTimeout(timer);resolve();},{once:true});
+        video.addEventListener('error',()=>{clearTimeout(timer);reject(new Error('Camera video could not be read by the recorder.'));},{once:true});
+      });
+      if(!video.videoWidth||!video.videoHeight) throw new Error('Camera is active but video frames are unavailable. Turn the Jitsi camera off and retry.');
+    }
     recordCanvas=document.createElement('canvas'); recordCanvas.width=854; recordCanvas.height=480;
     const ctx=recordCanvas.getContext('2d');
     const paint=()=>{
@@ -168,12 +179,14 @@ async function startRecording() {
       }
     });
     modeObserver.observe($('#pdfViewer'),{attributes:true,attributeFilter:['class']});
-    $('#recordStart').disabled=true; $('#recordStop').disabled=false; $('#recordStop').classList.remove('hidden');
+    $('#recordStart').disabled=true; $('#recordStart').textContent='● Recording'; $('#recordStop').disabled=false; $('#recordStop').classList.remove('hidden');
     $('#switchCamera').classList.remove('hidden');
     status(pdfMode()?'RECORDING: PDF slides + teacher microphone. Close the PDF to switch to the whiteboard camera.':'RECORDING: whiteboard camera + teacher microphone. Open a PDF to switch to slide recording.');
   } catch(e) {
     video?.remove(); recordVideo=null; stopTracks();
-    status('Recording did not start: ' + (e?.message || String(e)) + '. If your camera is already active in Jitsi, turn the Jitsi camera off, then try Start Recording again.');
+    const reason=e?.message || String(e);
+    status('Recording did not start: ' + reason);
+    toast('Recording did not start: ' + reason);
     $('#recordStart').disabled=false;
     $('#recordStop').classList.add('hidden');
   }
