@@ -288,11 +288,12 @@ async function init() {
       serviceUrl:'wss://8x8.vc/'+ticket.appId+'/xmpp-websocket?room='+encodeURIComponent(roomOnly),
       conferenceRequestUrl:'https://8x8.vc/'+ticket.appId+'/conference-request/v1?room='+encodeURIComponent(roomOnly),
       websocketKeepAliveUrl:'https://8x8.vc/'+ticket.appId+'/_unlock?room='+encodeURIComponent(roomOnly),
+      hiddenDomain:'recorder.8x8.vc',
       p2p:{enabled:true},disableAudioLevels:true
     };
     connection=new JitsiMeetJS.JitsiConnection(null,ticket.token,options);
     connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,async()=>{
-      room=connection.initJitsiConference(roomOnly,{openBridgeChannel:true});
+      room=connection.initJitsiConference(roomOnly,options);
       room.on(JitsiMeetJS.events.conference.TRACK_ADDED,track=>{
         if(track.isLocal()) return;
         const type=track.getType(), node=document.createElement(type==='video'?'video':'audio');
