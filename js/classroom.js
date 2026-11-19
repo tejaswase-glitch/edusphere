@@ -5,6 +5,7 @@ const classId = params.get('classId');
 const status = (s) => { $('#roomStatus').textContent = s; };
 const toast = (s) => { $('#roomToast').textContent = s; };
 let api = null, recorder = null, streams = [], chunks = [], audioContext = null, objectUrl = null;
+let micStream = null, cameraStream = null, recordCanvas = null, recordFrame = 0, modeObserver = null;
 let pdfDoc = null, pdfPage = 1, pdfChannel = null, pdfJs = null, isTeacher = false, currentPdfUrl = null;
 const pdfStatus = (s) => { $('#pdfStatus').textContent = s; };
 async function loadPdfJs() {
@@ -50,55 +51,92 @@ async function sendPdfState(event, payload) {
 }
 
 
-function stopTracks() { streams.forEach(s => s.getTracks().forEach(t => t.stop())); streams = []; if (audioContext) { audioContext.close().catch(()=>{}); audioContext = null; } }
+function pdfMode() { return $('#pdfViewer').classList.contains('active') && $('#pdfCanvas').width > 0; }
+async function ensureCamera() {
+  if (cameraStream?.getVideoTracks().some(t=>t.readyState==='live')) return cameraStream;
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+    streams.push(cameraStream); return cameraStream;
+  } catch (e) {
+    cameraStream = await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+    streams.push(cameraStream); return cameraStream;
+  }
+}
+function stopTracks() {
+  if (recordFrame) cancelAnimationFrame(recordFrame);
+  recordFrame=0;
+  if (modeObserver) modeObserver.disconnect();
+  modeObserver=null;
+  streams.forEach(s=>s.getTracks().forEach(t=>t.stop())); streams=[];
+  micStream=null; cameraStream=null;
+  if (audioContext) { audioContext.close().catch(()=>{}); audioContext=null; }
+}
 function finishRecording() {
   const blob = new Blob(chunks, {type: recorder?.mimeType || 'video/webm'});
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = objectUrl;
-  a.download = 'edusphere-class-' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.webm';
-  a.textContent = 'Download class recording';
+  a.download = 'edusphere-lecture-' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.webm';
+  a.textContent = 'Save / Download lecture video';
   a.style.cssText = 'display:inline-block;margin:10px 16px;padding:12px 16px;border-radius:8px;background:#e8f4ed;color:#174c31;font-weight:800';
-  $('#roomToast').replaceChildren(document.createTextNode('Recording ready. '), a);
+  $('#roomToast').replaceChildren(document.createTextNode('Lecture video is ready on this device. '), a);
   $('#recordStart').disabled = false; $('#recordStop').classList.add('hidden');
   stopTracks();
 }
 async function startRecording() {
-  if (!confirm('Record this class page only? Make sure everyone who may be recorded has given consent.')) return;
-  if (!navigator.mediaDevices?.getDisplayMedia || !window.MediaRecorder) {
-    toast('Android browser recording is unavailable on this device. Use Android Quick Settings → Screen recorder → choose Media sounds (and mic if needed) → Start. Return to this classroom and keep it open. Stop from the notification shade when finished. This records the visible screen and may include participant audio/video; get consent first.');
-    return;
+  if (!confirm('Record the teacher microphone and teaching view only (PDF slides or whiteboard camera)? Student audio/video will not be included. Make sure everyone has consented.')) return;
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+    toast('This browser does not support local lecture recording. Open EduSphere in the latest Chrome browser.'); return;
   }
-  let display;
+  let video=null;
   try {
-    display = await navigator.mediaDevices.getDisplayMedia({video:{displaySurface:'browser'},audio:true,preferCurrentTab:true,selfBrowserSurface:'include'});
-    const settings = display.getVideoTracks()[0]?.getSettings?.() || {};
-    if (settings.displaySurface && settings.displaySurface !== 'browser') {
-      display.getTracks().forEach(t=>t.stop());
-      toast('Recording cancelled: please choose the EduSphere classroom browser tab, not the full screen or another window.');
-      return;
-    }
-    let mic = null;
-    try { mic = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false}); } catch {}
-    streams = [display, ...(mic ? [mic] : [])];
-    const tracks = [...display.getVideoTracks()];
-    const audioTracks = [...display.getAudioTracks(), ...(mic ? mic.getAudioTracks() : [])];
-    if (audioTracks.length) {
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const dest = audioContext.createMediaStreamDestination();
-      audioTracks.forEach(track => audioContext.createMediaStreamSource(new MediaStream([track])).connect(dest));
-      tracks.push(...dest.stream.getAudioTracks());
-    }
-    const out = new MediaStream(tracks);
-    const mime = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
-    recorder = new MediaRecorder(out, mime ? {mimeType:mime} : undefined);
-    chunks = []; recorder.ondataavailable = e => { if(e.data.size) chunks.push(e.data); };
-    recorder.onstop = finishRecording;
-    display.getVideoTracks()[0].addEventListener('ended',()=>{ if(recorder?.state!=='inactive') recorder.stop(); });
-    recorder.start(1000);
-    $('#recordStart').disabled = true; $('#recordStop').classList.remove('hidden');
-    toast('Recording the dedicated classroom tab. Keep this page open; stop when class ends.');
-  } catch (e) { display?.getTracks().forEach(t=>t.stop()); stopTracks(); toast(e.message || 'Could not start recording.'); }
+    micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false});
+    streams.push(micStream);
+    if (!pdfMode()) await ensureCamera();
+    video=document.createElement('video'); video.muted=true; video.playsInline=true; video.autoplay=true;
+    video.style.cssText='position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px;top:-10px';
+    document.body.appendChild(video);
+    if(cameraStream){video.srcObject=cameraStream;await video.play().catch(()=>{});}
+    recordCanvas=document.createElement('canvas'); recordCanvas.width=1280; recordCanvas.height=720;
+    const ctx=recordCanvas.getContext('2d');
+    const paint=()=>{
+      ctx.fillStyle='#fff'; ctx.fillRect(0,0,1280,720);
+      if(pdfMode()){
+        const source=$('#pdfCanvas');
+        if(source.width>0&&source.height>0){
+          const scale=Math.min(1280/source.width,720/source.height),w=source.width*scale,h=source.height*scale;
+          ctx.drawImage(source,(1280-w)/2,(720-h)/2,w,h);
+        }
+      } else if(video.readyState>=2&&video.videoWidth){
+        const scale=Math.max(1280/video.videoWidth,720/video.videoHeight),w=video.videoWidth*scale,h=video.videoHeight*scale;
+        ctx.drawImage(video,(1280-w)/2,(720-h)/2,w,h);
+      } else {
+        ctx.fillStyle='#263858';ctx.font='bold 32px system-ui';ctx.textAlign='center';
+        ctx.fillText('Waiting for whiteboard camera…',640,360);
+      }
+      if(cameraStream) cameraStream.getVideoTracks().forEach(t=>t.enabled=!pdfMode());
+      recordFrame=requestAnimationFrame(paint);
+    };
+    const canvasStream=recordCanvas.captureStream(12);
+    const output=new MediaStream([...canvasStream.getVideoTracks(),...micStream.getAudioTracks()]);
+    const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
+    recorder=new MediaRecorder(output,mime?{mimeType:mime}:undefined);
+    chunks=[]; recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
+    recorder.onstop=()=>{video?.remove();finishRecording();};
+    recorder.start(1000); paint();
+    modeObserver=new MutationObserver(async()=>{
+      if(!pdfMode()&&!cameraStream&&recorder?.state==='recording'){
+        try { const s=await ensureCamera(); video.srcObject=s; await video.play().catch(()=>{}); }
+        catch(e){toast('Camera access was not allowed. PDF recording can continue, but whiteboard mode needs camera permission.');}
+      }
+    });
+    modeObserver.observe($('#pdfViewer'),{attributes:true,attributeFilter:['class']});
+    $('#recordStart').disabled=true; $('#recordStop').classList.remove('hidden');
+    toast(pdfMode()?'Recording PDF slides + teacher microphone. Close the PDF to switch to the whiteboard camera.':'Recording whiteboard camera + teacher microphone. Open a PDF to switch to slide recording.');
+  } catch(e) {
+    video?.remove(); stopTracks();
+    toast(e.message || 'Could not start lecture recording. Check microphone/camera permission and try again.');
+  }
 }
 function stopRecording() { if (recorder && recorder.state !== 'inactive') recorder.stop(); }
 
@@ -143,7 +181,7 @@ async function init() {
   if (teacher) {
     $('#pdfUploadLabel').classList.remove('hidden');
     $('#recordStart').classList.remove('hidden');
-    $('#recordNote').textContent = 'Teacher recording: this page is a separate classroom window, so the EduSphere dashboard is not part of the class capture. On Android, use the built-in Screen Recorder and keep this page in front. Recording may include participant audio/video; obtain consent before recording.';
+    $('#recordNote').textContent = 'One combined recorder: while a PDF is open it records the slides; when the PDF is closed it records the rear camera/whiteboard. Only the teacher microphone is added. Student audio/video and the dashboard are excluded. The video is saved locally; get consent first.';
   } else $('#recordNote').classList.add('hidden');
   $('#recordStart').addEventListener('click',startRecording);
   $('#pdfFile').addEventListener('change', async e => {
