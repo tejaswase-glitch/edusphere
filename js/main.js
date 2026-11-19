@@ -2,6 +2,7 @@
 import { cfg, sb, $, $$, esc, toast } from './core.js';
 import { initAuth, openLogin, openRegister, logout } from './auth.js';
 import { initPortal } from './portal.js';
+import { getSubjects } from './data.js';
 
 initPortal(); initAuth();
 
@@ -28,6 +29,10 @@ const contact = [['Email', cfg.CONTACT_EMAIL, v => `mailto:${v}`], ['Phone', cfg
 if (contact.length) { $('#contactGrid').innerHTML = contact.map(([l, v, h]) => `<div class="contact-item"><small>${l}</small>${h ? `<a href="${esc(h(v))}">${esc(v)}</a>` : `<span>${esc(v)}</span>`}</div>`).join(''); }
 const social = [['YouTube', cfg.YOUTUBE_URL, 'YT'], ['Facebook', cfg.FACEBOOK_URL, 'f'], ['Telegram', cfg.TELEGRAM_URL, 'TG']].filter(s => /^https:\/\//.test(s[1] || ''));
 if (social.length) { $('#followBox').hidden = false; $('#followLinks').innerHTML = social.map(([n, u, s]) => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer" aria-label="${n}">${s}</a>`).join(' '); }
+
+
+// Homepage subjects are configured by Admin > Courses & Subjects.
+(async()=>{if(!sb)return;try{const subjects=(await getSubjects()).filter(s=>s.is_active),grid=$('#subjectGrid');grid.innerHTML=subjects.length?subjects.map((s,i)=>'<article class="subject-card" data-subject="'+esc(s.name)+'"><img src="assets/generic.svg" alt="" loading="lazy" width="400" height="300"><div><h3>'+esc(s.name)+'</h3><p class="sc-sub">'+esc(s.description||'Explore lessons and study materials')+'</p><button class="btn btn-play '+(i%2?'alt':'')+'" data-register type="button">Register to Watch</button></div></article>').join(''):'<p class="fine">Subjects will appear here when the Admin adds them.</p>';}catch(e){console.warn('Could not load admin subjects:',e);}})();
 
 // Public lecture previews: reads ONLY the safe view (title, subject, short description, thumbnail). No video id, no links.
 (async () => {
