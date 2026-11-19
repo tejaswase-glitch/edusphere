@@ -1,4 +1,4 @@
-// Live classes: Google Meet links plus embedded Jitsi rooms.
+// Live classes: Google Meet links plus embedded JaaS rooms.
 import { sb, state, $, esc, toast, fail, confirmDialog, niceDate, localInput, isMeetUrl } from './core.js';
 import { empty, actions, loading } from './ui.js';
 import { getSubjects, getCourses, subjectField, courseField } from './data.js';
@@ -9,7 +9,7 @@ function loadJitsi() {
   if (window.JitsiMeetExternalAPI) return Promise.resolve();
   if (!jitsiLoader) jitsiLoader = new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = 'https://meet.jit.si/external_api.js';
+    s.src = 'https://8x8.vc/external_api.js';
     s.async = true;
     s.onload = () => window.JitsiMeetExternalAPI ? resolve() : reject(new Error('Jitsi could not be loaded.'));
     s.onerror = () => reject(new Error('Could not load Jitsi. Check your internet connection.'));
@@ -74,9 +74,9 @@ export async function classesView(el) {
       subjectField(subjects, c.subject || '') + courseField(courses, c.course_id || '') +
       '<label>Description<textarea name="description" maxlength="800">' + esc(c.description || '') + '</textarea></label>' +
       '<label>Date and time<input name="starts_at" type="datetime-local" required value="' + (c.starts_at ? localInput(c.starts_at) : '') + '"></label>' +
-      '<label>Meeting platform<select name="provider"><option value="google_meet"' + (provider === 'google_meet' ? ' selected' : '') + '>Google Meet</option><option value="jitsi"' + (provider === 'jitsi' ? ' selected' : '') + '>Jitsi (opens inside EduSphere)</option></select></label>' +
+      '<label>Meeting platform<select name="provider"><option value="google_meet"' + (provider === 'google_meet' ? ' selected' : '') + '>Google Meet</option><option value="jitsi"' + (provider === 'jitsi' ? ' selected' : '') + '>JaaS (inside EduSphere)</option></select></label>' +
       '<label id="meetUrlField"' + (provider === 'jitsi' ? ' hidden' : '') + '>Google Meet link<input name="meeting_url" type="url" placeholder="https://meet.google.com/abc-defg-hij" value="' + (provider === 'google_meet' ? esc(c.meeting_url || '') : '') + '"></label>' +
-      '<div id="jitsiInfo" class="note"' + (provider !== 'jitsi' ? ' hidden' : '') + '><b>Jitsi room:</b> ' + (c.meeting_room ? esc(c.meeting_room) : 'A unique room will be generated when you schedule.') + '<br>Jitsi uses its public meeting service. Do not use it for confidential classes without reviewing its privacy and service terms.</div>' +
+      '<div id="jitsiInfo" class="note"' + (provider !== 'jitsi' ? ' hidden' : '') + '><b>Jitsi room:</b> ' + (c.meeting_room ? esc(c.meeting_room) : 'A unique room will be generated when you schedule.') + '<br>Secure EduSphere JaaS classroom. Approved EduSphere accounts receive role-based meeting access.</div>' +
       '<div class="note"><b>Google Meet safety:</b> Approved students can see the link, but may forward it. Use host controls to admit participants.</div>' +
       '<div class="actions"><button class="btn btn-primary" type="submit">' + (editing ? 'Save changes' : 'Schedule class') + '</button>' +
       (editing ? '<button class="btn btn-soft" type="button" data-act="cancelEdit">Stop editing</button>' : '') + '</div></form>';
@@ -98,7 +98,7 @@ export async function classesView(el) {
     if (!editing && d < new Date()) return toast('Choose a future date and time.', 'bad');
     if (provider === 'google_meet' && !isMeetUrl(f.meeting_url)) return toast('Use a valid Google Meet link starting with https://meet.google.com/', 'bad');
     const room = provider === 'jitsi' ? (editing?.provider === 'jitsi' ? (editing.meeting_room || String(editing.meeting_url || '').split('/').pop()) : makeRoom()) : null;
-    const meetingUrl = provider === 'jitsi' ? 'https://meet.jit.si/' + encodeURIComponent(room) : f.meeting_url.trim();
+    const meetingUrl = provider === 'jitsi' ? 'https://8x8.vc/' + encodeURIComponent(room) : f.meeting_url.trim();
     const row = { title: f.title.trim(), subject: f.subject.trim(), description: (f.description || '').trim(), meeting_url: meetingUrl, provider, meeting_room: room, starts_at: d.toISOString(), course_id: f.course_id || null, updated_at: new Date().toISOString() };
     btn.disabled = true;
     try {
@@ -119,18 +119,27 @@ export async function classesView(el) {
     $('#jitsiStage', el).scrollIntoView({ behavior: 'smooth', block: 'start' });
     try {
       await loadJitsi();
-      const room = c.meeting_room || String(c.meeting_url || '').split('/').pop();
-      if (!room) throw new Error('This Jitsi class has no room name. Ask the teacher to reschedule it.');
-      jitsiApi = new window.JitsiMeetExternalAPI('meet.jit.si', {
-        roomName: room,
+      const { data: authData } = await sb.auth.getSession();
+      if (!authData?.session) throw new Error('Your EduSphere session has expired. Please sign in again.');
+      const { data: ticket, error: ticketError } = await sb.functions.invoke('jaas-token', { body: { classId: c.id } });
+      if (ticketError) {
+        let message = ticketError.message || 'Could not authorize this JaaS class.';
+        try { message = (await ticketError.context.json()).error || message; } catch {}
+        throw new Error(message);
+      }
+      if (!ticket?.token || !ticket?.roomName) throw new Error(ticket?.error || 'The secure JaaS token was not returned.');
+      jitsiApi = new window.JitsiMeetExternalAPI('8x8.vc', {
+        roomName: ticket.roomName,
+        jwt: ticket.token,
         parentNode: $('#jitsiFrame', el),
         width: '100%',
         height: '100%',
         userInfo: { displayName: state.profile.full_name || 'EduSphere participant' },
         configOverwrite: {
-          prejoinPageEnabled: false,
-          startWithAudioMuted: false,
-          startWithVideoMuted: false,
+          prejoinConfig: { enabled: false },
+          disableInitialGUM: true,
+          startWithAudioMuted: true,
+          startWithVideoMuted: true,
           toolbarButtons: ['microphone', 'camera', 'desktop', 'chat', 'participants-pane', 'raisehand', 'tileview', 'fullscreen', 'settings', 'hangup', 'select-background', 'videoquality']
         },
         interfaceConfigOverwrite: { MOBILE_APP_PROMO: false, SHOW_JITSI_WATERMARK: false }
