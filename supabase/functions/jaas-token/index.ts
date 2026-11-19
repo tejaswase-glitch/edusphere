@@ -62,9 +62,6 @@ Deno.serve(async (req) => {
 
     const isModerator = profile.role === 'admin' ||
       (profile.role === 'teacher' && liveClass.created_by === profile.id);
-    if (profile.role === 'teacher' && !isModerator) {
-      return json({ error: 'Teachers can moderate only their own classes.' }, 403);
-    }
     if (profile.role === 'student' && !liveClass.is_published) {
       return json({ error: 'This class is not published for students.' }, 403);
     }
