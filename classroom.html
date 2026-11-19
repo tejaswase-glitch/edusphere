@@ -15,23 +15,23 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101a35;col
 .room-status{flex:0 0 auto;padding:2px 8px;color:#d5def1;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-height:18px}
 .record-note{flex:0 0 auto;padding:3px 8px;background:#24365e;color:#e6edff;font-size:9px;line-height:1.15;max-height:25px;overflow:hidden}
 .pdf-tools{flex:0 0 auto;display:flex;gap:6px;align-items:center;flex-wrap:nowrap;padding:3px 7px;background:#1b2c50;font-size:10px;z-index:30;min-height:32px}
-.pdf-tools label{border:0;border-radius:6px;padding:5px 8px;font-weight:700;background:#e8efff;color:#172447;white-space:nowrap}
+.pdf-tools label{border:0;border-radius:5px;padding:4px 6px;font-weight:700;background:#e8efff;color:#172447;white-space:nowrap;font-size:9px;line-height:1}
 .pdf-tools input{max-width:160px;color:#fff}
 .room-stage{flex:1 1 auto;min-height:0;padding:1px 3px;display:flex;overflow:hidden}
 .room-frame{width:100%;height:100%;min-height:0;border:0;border-radius:7px;background:#000}
 .pdf-viewer{display:none}
 .pdf-viewer.active{position:fixed;z-index:25;left:0;right:0;top:82px;bottom:0;display:flex;flex-direction:column;min-height:0;background:#dce3f0;color:#172447;padding:5px;overflow:hidden}
 .pdf-bar{flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;margin-bottom:4px;font-size:11px}
-.pdf-bar button{padding:7px 9px;border:0;border-radius:7px;font-weight:700}
+.pdf-bar button{padding:5px 7px;border:0;border-radius:6px;font-weight:700;font-size:10px}
 .pdf-canvas-wrap{flex:1 1 auto;min-height:0;width:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .pdf-canvas-wrap canvas{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;background:#fff;box-shadow:0 2px 12px #0003}
 .pdf-message{text-align:center;padding:2px;font-size:10px}
 .room-toast{flex:0 0 auto;padding:12px 10px;color:#fff;font-size:14px;max-height:35vh;overflow:auto;text-align:center;line-height:1.5}
 .hidden{display:none!important}
 @media(max-width:600px){
- .room-head{padding:3px 5px;min-height:38px}.room-head h1{font-size:11px}.room-head small{font-size:9px}.room-actions{gap:3px}.room-actions button{padding:5px 6px;font-size:9px}.record-note{display:none}.room-status{font-size:9px;max-height:16px}.pdf-tools{min-height:29px;padding:2px 5px;gap:4px}.pdf-tools label{padding:4px 6px;font-size:9px}.pdf-tools span{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .room-head{padding:3px 5px;min-height:38px}.room-head h1{font-size:11px}.room-head small{font-size:9px}.room-actions{gap:3px}.room-actions button{padding:5px 6px;font-size:9px}.record-note{display:none}.room-status{font-size:9px;max-height:16px}.pdf-tools{min-height:29px;padding:2px 5px;gap:4px}.pdf-tools label{padding:3px 5px;font-size:8px}.pdf-tools span{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .room-stage{padding:0}.room-frame{border-radius:0}
- .pdf-tools{padding:4px 6px;gap:5px}.pdf-tools label{padding:6px 7px}
+ .pdf-tools{padding:2px 5px;gap:4px}.pdf-tools label{padding:3px 5px;font-size:8px}
  .pdf-viewer.active{top:78px;padding:4px}
  .pdf-bar{gap:4px}.pdf-bar button{padding:6px 7px;font-size:10px}
 }
@@ -42,7 +42,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101a35;col
 <header class="room-head"><div><h1 id="roomTitle">EduSphere Live Classroom</h1><small id="roomUser">Secure class session</small></div><div class="room-actions"><button id="recordStart" class="record-start hidden" type="button">● Start Recording</button><button id="recordStop" class="record-stop hidden" type="button" disabled>Stop & Save</button><button id="switchCamera" class="record-stop hidden" type="button">Front / Back</button><button id="leaveRoom" class="leave" type="button">Leave Class</button></div></header>
 <div class="record-note" id="recordNote">Combined recording saves the teacher microphone and current teaching view: PDF slides or rear camera/whiteboard. Student audio/video and the dashboard are excluded. Get consent first.</div>
 <div class="room-status" id="roomStatus">Connecting to secure classroom…</div>
-<div class="pdf-tools" id="pdfTools"><label id="pdfUploadLabel" class="hidden">Share PDF in class <input id="pdfFile" type="file" accept="application/pdf,.pdf"></label><span id="pdfStatus">Teacher can present a PDF here.</span></div>
+<div class="pdf-tools" id="pdfTools"><label id="pdfUploadLabel" class="hidden">📄 Share PDF <input id="pdfFile" type="file" accept="application/pdf,.pdf"></label><span id="pdfStatus">Teacher can present a PDF here.</span></div>
 <section class="pdf-viewer" id="pdfViewer"><div class="pdf-bar"><b id="pdfName">Class PDF</b><button id="pdfPrev" type="button">Previous</button><span id="pdfPage">Page 0 / 0</span><button id="pdfNext" type="button">Next</button><button id="pdfClose" type="button">Close PDF</button></div><div class="pdf-canvas-wrap"><canvas id="pdfCanvas"></canvas></div><div class="pdf-message" id="pdfMessage"></div></section>
 <main class="room-stage"><div id="jitsiFrame" class="room-frame"></div></main>
 <div class="room-toast" id="roomToast" role="status" aria-live="polite"></div>
