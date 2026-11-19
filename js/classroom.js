@@ -10,6 +10,18 @@ let localTracks = [], localAudioTrack = null, localVideoTrack = null, remoteTrac
 let micStream = null, cameraStream = null, recordCanvas = null, recordFrame = 0, modeObserver = null, recordVideo = null, cameraFacing = 'environment';
 let pdfDoc = null, pdfPage = 1, pdfChannel = null, pdfJs = null, isTeacher = false, currentPdfUrl = null, pendingPdfFile = null;
 const incomingPdfTransfers = new Map();
+function applyCameraOrientation(track=localVideoTrack){
+  const settings=track?.getTrack?.()?.getSettings?.()||{};
+  const label=String(track?.getTrack?.()?.label||'').toLowerCase();
+  cameraFacing=settings.facingMode||(/front|selfie|user/.test(label)?'user':'environment');
+  const mirrored=cameraFacing==='user';
+  const preview=$('#localPreview');
+  if(preview){
+    preview.style.setProperty('transform',mirrored?'scaleX(-1)':'none','important');
+    preview.style.setProperty('-webkit-transform',mirrored?'scaleX(-1)':'none','important');
+  }
+  return mirrored;
+}
 let classEndedForStudents = false;
 let pdfChannelReady = false;
 let pdfChannelReadyPromise = null;
@@ -239,7 +251,8 @@ async function startRecording() {
         }
       } else if(video.readyState>=2&&video.videoWidth){
         const scale=Math.max(W/video.videoWidth,H/video.videoHeight),sw=W/scale,sh=H/scale,sx=(video.videoWidth-sw)/2,sy=(video.videoHeight-sh)/2;
-        ctx.drawImage(video,sx,sy,sw,sh,0,0,W,H);
+        if(cameraFacing==='user'){ctx.save();ctx.translate(W,0);ctx.scale(-1,1);ctx.drawImage(video,sx,sy,sw,sh,0,0,W,H);ctx.restore();}
+        else ctx.drawImage(video,sx,sy,sw,sh,0,0,W,H);
       } else {
         ctx.fillStyle='#263858';ctx.font='bold 32px system-ui';ctx.textAlign='center';
         ctx.fillText('Waiting for whiteboard camera…',W/2,H/2);
@@ -438,7 +451,7 @@ async function init() {
       localTracks=await JitsiMeetJS.createLocalTracks({devices:['audio','video'],constraints:{video:{height:{ideal:720,max:720},width:{ideal:1280,max:1280},frameRate:{ideal:30,max:30}}}});
       localAudioTrack=localTracks.find(t=>t.getType()==='audio');localVideoTrack=localTracks.find(t=>t.getType()==='video');
       if(!localAudioTrack||!localVideoTrack)throw new Error('Could not create both classroom camera and microphone tracks.');
-      const preview=$('#localPreview');await localVideoTrack.attach(preview);preview.style.setProperty('transform','none','important');preview.style.setProperty('-webkit-transform','none','important');preview.style.setProperty('object-fit','cover','important');
+      const preview=$('#localPreview');await localVideoTrack.attach(preview);applyCameraOrientation(localVideoTrack);preview.style.setProperty('object-fit','cover','important');
     }else{localTracks=[];localAudioTrack=null;localVideoTrack=null;$('#enableMic')?.classList.remove('hidden');}
     const roomOnly=ticket.roomName.slice(ticket.roomName.indexOf('/')+1);
     const options={
@@ -524,8 +537,7 @@ async function init() {
         try{await previous.dispose();}catch{}
         localVideoTrack=replacement;
         await replacement.attach($('#localPreview'));
-        $('#localPreview').style.setProperty('transform','none','important');
-        $('#localPreview').style.setProperty('-webkit-transform','none','important');
+        applyCameraOrientation(replacement);
         $('#localPreview').style.setProperty('object-fit','cover','important');
         localTracks=localTracks.filter(t=>t!==previous);localTracks.push(replacement);
         cameraStream=null;
