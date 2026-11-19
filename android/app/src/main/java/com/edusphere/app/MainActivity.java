@@ -16,6 +16,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
+import android.view.WindowManager;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -47,6 +48,7 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         rootLayout = new FrameLayout(this);
         webView = new WebView(this);
         rootLayout.addView(webView, new FrameLayout.LayoutParams(
@@ -129,6 +131,7 @@ public class MainActivity extends Activity {
                 rootLayout.removeView(splashView);
                 splashView = null;
                 splashFinished = true;
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             }
         }, 2000);
     }
@@ -143,10 +146,10 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
         content.setPadding(24, 24, 24, 24);
 
-        TextView logo = new TextView(this);
-        logo.setText("🎓");
-        logo.setTextSize(48);
-        logo.setGravity(Gravity.CENTER);
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.edusphere_logo);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        logo.setPadding(dp(22), dp(22), dp(22), dp(22));
         GradientDrawable logoBg = new GradientDrawable();
         logoBg.setColor(Color.rgb(91, 75, 255));
         logoBg.setCornerRadius(dp(24));
