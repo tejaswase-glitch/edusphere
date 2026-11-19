@@ -25,6 +25,7 @@ const VIEWS = {
 const teacherDashboardLite = (el, ctx) => teacherDashboard(el, ctx);
 
 let token = 0, current = null;
+let detachedPublicSite = null;
 const sidebar = () => $('#sidebar');
 
 export function mountPortal() {
@@ -32,10 +33,10 @@ export function mountPortal() {
   document.body.dataset.view = 'app';
   document.documentElement.classList.add('edusphere-app');
   const publicSite = $('#site');
-  publicSite.hidden = true;
-  publicSite.setAttribute('aria-hidden', 'true');
-  publicSite.inert = true;
-  publicSite.style.setProperty('display', 'none', 'important');
+  if (publicSite && publicSite.isConnected) {
+    detachedPublicSite = publicSite;
+    publicSite.remove();
+  }
   $('#app').hidden = false;
   $('#app').style.setProperty('display', 'block', 'important');
   $('#avatar').textContent = initials(p.full_name);
@@ -53,11 +54,10 @@ export function unmountPortal() {
   document.body.dataset.view = 'site';
   document.documentElement.classList.remove('edusphere-app');
   $('#app').hidden = true; $('#app').style.display = 'none';
-  const publicSite = $('#site');
-  publicSite.hidden = false;
-  publicSite.removeAttribute('aria-hidden');
-  publicSite.inert = false;
-  publicSite.style.removeProperty('display');
+  if (detachedPublicSite && !detachedPublicSite.isConnected) {
+    $('#app').before(detachedPublicSite);
+  }
+  detachedPublicSite = null;
   window.scrollTo(0, 0);
 }
 
