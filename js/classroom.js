@@ -194,7 +194,7 @@ async function startRecording() {
     });
     modeObserver.observe($('#pdfViewer'),{attributes:true,attributeFilter:['class']});
     $('#recordStart').disabled=true; $('#recordStart').textContent='● Recording'; $('#recordStop').disabled=false; $('#recordStop').classList.remove('hidden');
-    $('#switchCamera').classList.add('hidden');
+    $('#switchCamera')?.classList.add('hidden');
     status(pdfMode()?'RECORDING: PDF slides + teacher microphone. Close the PDF to switch to the whiteboard camera.':'RECORDING: whiteboard camera + teacher microphone. Open a PDF to switch to slide recording.');
   } catch(e) {
     video?.remove(); recordVideo=null; stopTracks();
