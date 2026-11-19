@@ -30,7 +30,7 @@ const sidebar = () => $('#sidebar');
 export function mountPortal() {
   const p = state.profile;
   document.body.dataset.view = 'app';
-  $('#site').hidden = false; $('#app').hidden = false;
+  $('#site').hidden = true; $('#app').hidden = false;
   $('#avatar').textContent = initials(p.full_name);
   $('#whoName').textContent = ' ' + (p.full_name || p.role);
   $('#sideNav').innerHTML = NAV[p.role].map(([id, label, ic]) => `<button type="button" data-nav="${id}">${svg(ic, 22)}<span>${esc(label)}</span></button>`).join('');
