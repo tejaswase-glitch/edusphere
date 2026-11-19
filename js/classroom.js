@@ -79,12 +79,19 @@ async function init() {
   } else $('#recordNote').classList.add('hidden');
   $('#recordStart').addEventListener('click',startRecording);
   $('#recordStop').addEventListener('click',stopRecording);
-  $('#leaveRoom').addEventListener('click',async()=>{
+  $('#leaveRoom').addEventListener('click',()=>{
+    const leave = () => {
+      try { api?.executeCommand('hangup'); } catch {}
+      try { api?.dispose(); } catch {}
+      location.replace(new URL('./', document.baseURI).href);
+    };
     if(recorder?.state==='recording'){
       if(!confirm('A recording is running. Stop and save it before leaving?')) return;
-      await new Promise(resolve=>{ recorder.addEventListener('stop',resolve,{once:true}); stopRecording(); });
+      recorder.addEventListener('stop',leave,{once:true});
+      stopRecording();
+      return;
     }
-    api?.dispose(); location.href='./';
+    leave();
   });
   try {
     const {data:ticket,error:ticketError}=await sb.functions.invoke('jaas-token',{body:{classId}});
