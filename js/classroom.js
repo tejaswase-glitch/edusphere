@@ -136,12 +136,14 @@ async function sendPdfState(event, payload) {
 
 function pdfMode() { return $('#pdfViewer').classList.contains('active') && $('#pdfCanvas').width > 0; }
 async function ensureCamera() {
-  if (!localVideoTrack || localVideoTrack.isMuted()) {
+  if (!localVideoTrack) {
     throw new Error('Turn on your classroom camera first, wait until your picture appears, then start recording.');
   }
   const sourceTrack=localVideoTrack.getTrack?.();
   const preview=$('#localPreview');
-  if(!sourceTrack || sourceTrack.readyState!=='live') {
+  // Do not use Jitsi isMuted() here: on Android its flag can lag behind the
+  // actual camera state. The visible preview and browser track are authoritative.
+  if(!sourceTrack || sourceTrack.readyState!=='live' || sourceTrack.enabled===false) {
     throw new Error('The teacher camera is not producing a live video track. Turn the camera off and on again.');
   }
   if(!preview || preview.readyState<2 || !preview.videoWidth || !preview.videoHeight) {
@@ -399,6 +401,7 @@ async function init() {
   if(!teacher){$('#recordNote').classList.add('hidden');$('#localPreview')?.closest('.participant-tile')?.classList.add('hidden');$('#toggleCamera')?.classList.add('hidden');$('#switchCamera')?.classList.add('hidden');$('#toggleMic')?.classList.add('hidden');}
   $('#roomTitle').textContent = c.title || 'EduSphere Live Classroom';
   $('#roomUser').textContent = (profile.full_name || profile.role) + ' · ' + profile.role;
+  if(isTeacher && $('#teacherPlaceholderName')) $('#teacherPlaceholderName').textContent=profile.full_name||'Teacher';
   if (teacher) {
     $('#pdfUploadLabel').classList.remove('hidden');
     $('#recordStart').classList.remove('hidden');
@@ -531,7 +534,7 @@ async function init() {
         const item=remoteTrackNodes.get(track.getId());if(item){track.detach(item.node);item.tile?.remove();item.node.remove();remoteTrackNodes.delete(track.getId());}
       });
       room.on(JitsiMeetJS.events.conference.CONFERENCE_JOINED,()=>{
-        status('Connected · Live classroom. Your camera and microphone are shared with the class.');
+        status(isTeacher?'Connected · Live classroom. Your camera is off until you turn it on.':'Connected · Live classroom.');
         try{for(const p of room.getParticipants?.()||[]){const id=p.getId?.();if(id)participantNames.set(id,p.getDisplayName?.()||'Participant');}}catch{}
         renderRoster();
       });
