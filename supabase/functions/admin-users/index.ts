@@ -72,6 +72,29 @@ Deno.serve(async (req) => {
       return json({ ok: true, id: data.user.id, emailSent: !e3, note: e3 ? 'Teacher created, but the password email failed: ' + e3.message : 'Teacher created; a password-setup email was sent.' });
     }
 
+    if (b.action === 'create_admin') {
+      const email = clean(b.email, 200).toLowerCase();
+      const full_name = clean(b.full_name, 100);
+      if (!emailOk(email) || !full_name) return json({ error: 'Name and a valid email are required' }, 400);
+      const pw = crypto.randomUUID() + crypto.randomUUID() + 'Aa1!';
+      const { data, error } = await admin.auth.admin.createUser({
+        email, password: pw, email_confirm: true, user_metadata: { full_name },
+      });
+      if (error) return json({ error: error.message }, 400);
+      const { error: profileError } = await admin.from('profiles').upsert({
+        id: data.user.id, email, full_name, role: 'admin', status: 'approved',
+      });
+      if (profileError) {
+        await admin.auth.admin.deleteUser(data.user.id);
+        return json({ error: profileError.message }, 400);
+      }
+      const { error: inviteError } = await caller.auth.resetPasswordForEmail(email, { redirectTo });
+      if (inviteError) {
+        return json({ ok: true, id: data.user.id, emailSent: false, note: 'Administrator account created, but the password-setup email failed: ' + inviteError.message });
+      }
+      return json({ ok: true, id: data.user.id, emailSent: true, note: 'Administrator created. A password-setup email was sent.' });
+    }
+
     if (b.action === 'update_teacher') {
       const full_name = clean(b.full_name, 100);
       if (!b.id || !full_name) return json({ error: 'Name is required' }, 400);
