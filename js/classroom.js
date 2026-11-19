@@ -247,26 +247,17 @@ async function startRecording() {
   try {
     status('Preparing the shared Jitsi microphone and camera tracks…');
     if (!localAudioTrack) throw new Error('The classroom microphone is not ready. Rejoin the class and allow microphone permission.');
-    if (!pdfMode() && !localVideoTrack) throw new Error('Turn on your classroom camera first, wait until your picture appears, then start recording.');
     const sourceAudioTrack = localAudioTrack.getTrack();
     if (!sourceAudioTrack || sourceAudioTrack.readyState !== 'live') throw new Error('The classroom microphone track is unavailable. Rejoin the class and allow microphone access.');
-    // Reuse the teacher's Jitsi microphone track; remote student tracks are never added.
+    // Record only the teacher microphone. Camera is optional: when it is off,
+    // the recording shows the teacher placeholder; PDF mode records the slides.
     micStream = new MediaStream([sourceAudioTrack]);
-    if (!pdfMode()) await ensureCamera();
-    // Draw from the existing Jitsi preview element. Android Chrome may fail
-    // when the same camera track is attached to a second video element.
     video=$('#localPreview');
     recordVideo=video;
-    if(!pdfMode()){
-      if(video.readyState<2) await new Promise((resolve,reject)=>{
-        const timer=setTimeout(()=>reject(new Error('The live classroom preview has not produced video frames. Check that your camera is on.')),6000);
-        const ready=()=>{clearTimeout(timer);resolve();};
-        video.addEventListener('loadeddata',ready,{once:true});
-        video.addEventListener('playing',ready,{once:true});
-        if(video.readyState>=2) ready();
-      });
-      if(!video.videoWidth||!video.videoHeight) throw new Error('The live classroom camera preview has no video frames. Turn your camera on and retry.');
-    }
+    const cameraIsLive = !!(localVideoTrack?.getTrack?.()?.readyState==='live'
+      && localVideoTrack.getTrack()?.enabled!==false
+      && !localVideoTrack.isMuted?.()
+      && video?.readyState>=2 && video.videoWidth && video.videoHeight);
     recordCanvas=document.createElement('canvas'); recordCanvas.width=1280; recordCanvas.height=720;
     const ctx=recordCanvas.getContext('2d');
     const drawTeachingFrame=()=>{
@@ -281,13 +272,19 @@ async function startRecording() {
           const sx=Math.max(0,(source.width-cropW)/2), sy=Math.min(Math.max(0,wrap.scrollTop*ratioY),Math.max(0,source.height-cropH));
           ctx.drawImage(source,sx,sy,cropW,cropH,0,0,W,H);
         }
-      } else if(video.readyState>=2&&video.videoWidth){
+      } else if(cameraIsLive && video.readyState>=2&&video.videoWidth){
         const scale=Math.max(W/video.videoWidth,H/video.videoHeight),sw=W/scale,sh=H/scale,sx=(video.videoWidth-sw)/2,sy=(video.videoHeight-sh)/2;
         if(cameraFacing==='user'){ctx.save();ctx.translate(W,0);ctx.scale(-1,1);ctx.drawImage(video,sx,sy,sw,sh,0,0,W,H);ctx.restore();}
         else ctx.drawImage(video,sx,sy,sw,sh,0,0,W,H);
       } else {
-        ctx.fillStyle='#263858';ctx.font='bold 32px system-ui';ctx.textAlign='center';
-        ctx.fillText('Waiting for whiteboard camera…',W/2,H/2);
+        ctx.fillStyle='#172447';ctx.fillRect(0,0,W,H);
+        ctx.fillStyle='#7c5cff';ctx.beginPath();ctx.arc(W/2,H/2-35,58,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#fff';ctx.font='bold 54px system-ui';ctx.textAlign='center';
+        ctx.fillText((state.profile?.full_name||'Teacher').trim().slice(0,1).toUpperCase(),W/2,H/2-17);
+        ctx.fillStyle='#dce6ff';ctx.font='bold 30px system-ui';
+        ctx.fillText((state.profile?.full_name||'Teacher').slice(0,32),W/2,H/2+65);
+        ctx.font='22px system-ui';ctx.fillStyle='#aebfe4';
+        ctx.fillText('Camera is off · Teacher microphone recording',W/2,H/2+112);
       }
     };
     const paint=()=>{
@@ -322,16 +319,9 @@ async function startRecording() {
     }
     if(startError) throw new Error('Android browser could not start the video encoder ('+(startError.message||'unsupported video source')+'). Try updating Chrome.'); 
     paint();
-    modeObserver=new MutationObserver(async()=>{
-      if(!pdfMode()&&!cameraStream&&recorder?.state==='recording'){
-        try { await ensureCamera(); }
-        catch(e){toast('Camera access was not allowed. PDF recording can continue, but whiteboard mode needs camera permission.');}
-      }
-    });
-    modeObserver.observe($('#pdfViewer'),{attributes:true,attributeFilter:['class']});
+    // Closing a PDF never turns on the teacher camera automatically.
     $('#recordStart').disabled=true; $('#recordStart').textContent='● Recording'; $('#recordStop').disabled=false; $('#recordStop').classList.remove('hidden');
     $('#recordStop').classList.remove('hidden');
-    $('#switchCamera')?.classList.add('hidden');
     status(pdfMode()?'RECORDING: PDF slides + teacher microphone. Close the PDF to switch to the whiteboard camera.':'RECORDING: whiteboard camera + teacher microphone. Open a PDF to switch to slide recording.');
   } catch(e) {
     recordVideo=null; stopTracks();
@@ -555,32 +545,32 @@ async function init() {
     });
     $('#switchCamera').addEventListener('click',async()=>{
       const button=$('#switchCamera');
-      const currentFacing=localVideoTrack?.getTrack?.()?.getSettings?.()?.facingMode || cameraFacing || 'environment';
+      const currentRaw=localVideoTrack?.getTrack?.();
+      let currentFacing=currentRaw?.getSettings?.()?.facingMode || cameraFacing || 'environment';
       const targetFacing=currentFacing==='user'?'environment':'user';
       let replacement=null;
       try{
         button.disabled=true;button.textContent='Switching…';
-        cameraFacing=targetFacing;
-        // If the camera is off, remember the preferred lens. It will be used
-        // when the teacher next turns the camera on; do not open it secretly.
-        if(!localVideoTrack || localVideoTrack.getTrack?.()?.readyState!=='live'){
-          status('The '+(targetFacing==='user'?'front':'back')+' camera is selected. Turn the camera on when ready.');
+        const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+        if(!localVideoTrack || currentRaw?.readyState!=='live'){
+          cameraFacing=targetFacing;
+          status('Preferred '+(targetFacing==='user'?'front':'back')+' camera selected. Turn your camera on when ready.');
           return;
         }
-        const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
-        const pattern=targetFacing==='user'?/(front|user|facetime)/i:/(back|rear|environment)/i;
-        const targetDevice=devices.find(d=>d.label && pattern.test(d.label));
-        const constraints={video:{
-          ...(targetDevice?.deviceId?{deviceId:{exact:targetDevice.deviceId}}:{facingMode:{exact:targetFacing}}),
-          width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}
-        }};
+        if(devices.length<2) throw new Error('Only one camera is available to the browser. Check camera permission and device availability.');
+        const activeId=currentRaw.getSettings?.()?.deviceId;
+        let targetDevice=devices.find(d=>d.deviceId!==activeId);
+        const targetPattern=targetFacing==='user'?/(front|user|facetime|selfie)/i:/(back|rear|environment)/i;
+        const labelledTarget=devices.find(d=>d.deviceId!==activeId && d.label && targetPattern.test(d.label));
+        if(labelledTarget) targetDevice=labelledTarget;
+        if(!targetDevice) throw new Error('The other camera was not found. Allow camera permission and try again.');
         const created=await JitsiMeetJS.createLocalTracks({
           devices:['video'],
-          ...(targetDevice?.deviceId?{cameraDeviceId:targetDevice.deviceId}:{}),
-          constraints
+          cameraDeviceId:targetDevice.deviceId,
+          resolution:720
         });
         replacement=created.find(t=>t.getType()==='video');
-        if(!replacement)throw new Error('The '+(targetFacing==='user'?'front':'back')+' camera could not be opened.');
+        if(!replacement)throw new Error('The selected camera could not be opened.');
         const previous=localVideoTrack;
         await room.replaceTrack(previous,replacement);
         try{previous.detach($('#localPreview'));}catch{}
@@ -591,12 +581,13 @@ async function init() {
         await replacement.attach($('#localPreview'));
         $('#localPreview').classList.remove('camera-off');
         $('#localPreview').style.setProperty('object-fit','cover','important');
+        const newSettings=replacement.getTrack?.()?.getSettings?.()||{};
+        cameraFacing=newSettings.facingMode || targetFacing;
         applyCameraOrientation(replacement);
         cameraStream=null;
         $('#toggleCamera').textContent='Turn Camera Off';
-        status('Switched to the '+(targetFacing==='user'?'front':'back')+' camera.');
+        status('Switched camera successfully.');
       }catch(e){
-        cameraFacing=currentFacing;
         if(replacement && replacement!==localVideoTrack){try{await replacement.dispose();}catch{}}
         status('Could not switch camera: '+(e?.message||e));
         toast('Could not switch camera: '+(e?.message||e));
@@ -609,10 +600,15 @@ async function init() {
       try{
         button.disabled=true;
         if(!localVideoTrack || localVideoTrack.getTrack?.()?.readyState!=='live'){
-          const created=await JitsiMeetJS.createLocalTracks({devices:['video'],constraints:{video:{
-            facingMode:{ideal:cameraFacing==='user'?'user':'environment'},
-            width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}
-          }}});
+          const devices=await navigator.mediaDevices.enumerateDevices().catch(()=>[]);
+          const candidates=devices.filter(d=>d.kind==='videoinput');
+          const wanted=cameraFacing==='user'?/(front|user|facetime|selfie)/i:/(back|rear|environment)/i;
+          const preferred=candidates.find(d=>d.label && wanted.test(d.label));
+          const created=await JitsiMeetJS.createLocalTracks({
+            devices:['video'],
+            ...(preferred?.deviceId?{cameraDeviceId:preferred.deviceId}:{}),
+            resolution:720
+          });
           const track=created.find(t=>t.getType()==='video');
           if(!track)throw new Error('Could not open the classroom camera. Check camera permission.');
           try{await room.addTrack(track);}catch(e){try{await track.dispose();}catch{}throw e;}
