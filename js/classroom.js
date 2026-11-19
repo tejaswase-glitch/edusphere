@@ -7,7 +7,7 @@ const toast = (s) => { $('#roomToast').textContent = s; };
 let api = null, connection = null, room = null, recorder = null, streams = [], chunks = [], audioContext = null, objectUrl = null;
 let localTracks = [], localAudioTrack = null, localVideoTrack = null, remoteTrackNodes = new Map();
 let micStream = null, cameraStream = null, recordCanvas = null, recordFrame = 0, modeObserver = null, recordVideo = null, cameraFacing = 'environment';
-let pdfDoc = null, pdfPage = 1, pdfChannel = null, pdfJs = null, isTeacher = false, currentPdfUrl = null;
+let pdfDoc = null, pdfPage = 1, pdfChannel = null, pdfJs = null, isTeacher = false, currentPdfUrl = null, pendingPdfFile = null;
 const pdfStatus = (s) => { $('#pdfStatus').textContent = s; };
 async function loadPdfJs() {
   if (pdfJs) return pdfJs;
@@ -48,6 +48,30 @@ async function renderPdfPage(n) {
   await page.render({canvasContext:ctx,viewport}).promise;
   $('#pdfPage').textContent = 'Page ' + pdfPage + ' / ' + pdfDoc.numPages;
   $('#pdfPrev').disabled = pdfPage <= 1; $('#pdfNext').disabled = pdfPage >= pdfDoc.numPages;
+}
+
+function pdfBytesToBase64(bytes){let binary='';for(let i=0;i<bytes.length;i+=0x8000){binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));}return btoa(binary);}
+function pdfBase64ToBytes(value){const binary=atob(value),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++){bytes[i]=binary.charCodeAt(i);}return bytes;}
+async function sharePdfTemporarily(file){
+ if(!room)throw new Error('The live class is not connected yet.');
+ if(file.size>5*1024*1024)throw new Error('Temporary PDF sharing is limited to 5 MB. Save larger PDFs manually.');
+ pendingPdfFile=file;$('#pdfSave').classList.remove('hidden');$('#pdfSave').disabled=false;$('#pdfSave').textContent='Save to EduSphere';
+ await showPdf(URL.createObjectURL(file),file.name,1);
+ const id=crypto.randomUUID(),bytes=new Uint8Array(await file.arrayBuffer()),chunkSize=12000,total=Math.ceil(bytes.length/chunkSize);
+ room.sendEndpointMessage(null,{eduspherePdf:'start',id:id,name:file.name,size:file.size,total:total});
+ for(let index=0;index<total;index++){const chunk=bytes.subarray(index*chunkSize,Math.min(bytes.length,(index+1)*chunkSize));room.sendEndpointMessage(null,{eduspherePdf:'chunk',id:id,index:index,data:pdfBytesToBase64(chunk)});await new Promise(resolve=>setTimeout(resolve,40));}
+ room.sendEndpointMessage(null,{eduspherePdf:'end',id:id});pdfStatus('Shared temporarily. Not saved to EduSphere.');
+}
+async function savePendingPdf(){
+ if(!pendingPdfFile)return pdfStatus('No PDF selected to save.');
+ const file=pendingPdfFile,button=$('#pdfSave');button.disabled=true;button.textContent='Saving…';
+ try{
+  const path=state.user.id+'/'+crypto.randomUUID()+'-'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  const up=await sb.storage.from('study-materials').upload(path,file,{contentType:'application/pdf',upsert:false});if(up.error)throw up.error;
+  const row=await sb.from('materials').insert({title:file.name.replace(/\.pdf$/i,''),subject:'Live class',description:'Shared during live class',file_path:path,file_name:file.name,content_type:'application/pdf',uploaded_by:state.user.id,is_published:true});
+  if(row.error){await sb.storage.from('study-materials').remove([path]);throw row.error;}
+  button.textContent='Saved ✓';pdfStatus('PDF saved to EduSphere study materials.');
+ }catch(e){button.disabled=false;button.textContent='Save to EduSphere';pdfStatus('Could not save PDF: '+(e.message||e));}
 }
 async function sendPdfState(event, payload) {
   if (!pdfChannel) return;
@@ -271,27 +295,17 @@ async function init() {
     $('#recordNote').textContent = 'One combined recorder: while a PDF is open it records the slides; when the PDF is closed it records the rear camera/whiteboard. Only the teacher microphone is added. Student audio/video and the dashboard are excluded. The video is saved locally; get consent first.';
   } else $('#recordNote').classList.add('hidden');
   $('#recordStart').addEventListener('click',startRecording);
-  $('#pdfFile').addEventListener('change', async e => {
-    const file = e.target.files?.[0]; if (!file) return;
-    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) { pdfStatus('Please choose a PDF file.'); return; }
-    if (file.size > 50 * 1024 * 1024) { pdfStatus('PDF must be 50 MB or smaller.'); return; }
-    try {
-      pdfStatus('Uploading PDF…');
-      const path = state.user.id + '/' + crypto.randomUUID() + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
-      const {error:upError} = await sb.storage.from('study-materials').upload(path,file,{contentType:'application/pdf',upsert:false});
-      if (upError) throw upError;
-      const {error:rowError} = await sb.from('materials').insert({title:file.name.replace(/\.pdf$/i,''),subject:c.subject || 'Live class',description:'Shared during live class: '+c.title,file_path:path,file_name:file.name,content_type:'application/pdf',uploaded_by:state.user.id,is_published:true,course_id:c.course_id || null});
-      if (rowError) throw rowError;
-      const {data:signed,error:signedError} = await sb.storage.from('study-materials').createSignedUrl(path,3600,{download:false});
-      if (signedError) throw signedError;
-      await showPdf(signed.signedUrl,file.name,1);
-      await sendPdfState('pdf-presentation',{url:signed.signedUrl,name:file.name,page:1,closed:false});
-    } catch(err) { pdfStatus(err.message || 'PDF upload failed.'); }
-    finally { e.target.value=''; }
+  $('#pdfFile').addEventListener('change',async e=>{
+    const file=e.target.files&&e.target.files[0];if(!file)return;
+    if(file.type!=='application/pdf'&&!file.name.toLowerCase().endsWith('.pdf')){pdfStatus('Please choose a PDF file.');return;}
+    if(file.size>50*1024*1024){pdfStatus('PDF must be 50 MB or smaller.');return;}
+    try{pdfStatus('Sharing PDF temporarily…');await sharePdfTemporarily(file);await sendPdfState('pdf-presentation',{name:file.name,page:1,closed:false,temporary:true});}
+    catch(err){pdfStatus(err.message||'Could not share PDF.');}finally{e.target.value='';}
   });
+  $('#pdfSave').addEventListener('click',savePendingPdf);
   $('#pdfPrev').addEventListener('click',async()=>{if(isTeacher && pdfDoc){await renderPdfPage(pdfPage-1);await sendPdfState('pdf-page',{page:pdfPage});}});
   $('#pdfNext').addEventListener('click',async()=>{if(isTeacher && pdfDoc){await renderPdfPage(pdfPage+1);await sendPdfState('pdf-page',{page:pdfPage});}});
-  $('#pdfClose').textContent='← Back to Camera';
+  $('#pdfClose').textContent='← Back to Camera';$('#pdfSave').classList.add('hidden');$('#pdfSave').disabled=false;$('#pdfSave').textContent='Save to EduSphere';
   $('#pdfClose').addEventListener('click',async()=>{if(isTeacher){$('#pdfViewer').classList.remove('active');document.querySelector('.room-shell')?.classList.remove('pdf-active');pdfDoc=null;await sendPdfState('pdf-presentation',{closed:true});}});
   pdfChannel = sb.channel('class-pdf-' + classId);
   pdfChannel.on('broadcast',{event:'pdf-presentation'},({payload})=>{if(!isTeacher){if(payload?.closed){$('#pdfViewer').classList.remove('active');pdfDoc=null;}else if(payload?.url) showPdf(payload.url,payload.name,payload.page);}});
@@ -330,6 +344,12 @@ async function init() {
     connection=new JitsiMeetJS.JitsiConnection(null,ticket.token,options);
     connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,async()=>{
       room=connection.initJitsiConference(roomOnly,options);
+      room.on(JitsiMeetJS.events.conference.ENDPOINT_MESSAGE_RECEIVED,(sender,payload)=>{
+        if(isTeacher||!payload||!payload.eduspherePdf)return;
+        if(payload.eduspherePdf==='start'){incomingPdfTransfers.set(payload.id,{name:payload.name,total:payload.total,chunks:new Array(payload.total),received:0});}
+        else if(payload.eduspherePdf==='chunk'){const t=incomingPdfTransfers.get(payload.id);if(!t||t.chunks[payload.index])return;t.chunks[payload.index]=pdfBase64ToBytes(payload.data);t.received++;}
+        else if(payload.eduspherePdf==='end'){const t=incomingPdfTransfers.get(payload.id);if(!t)return;if(t.received!==t.total){incomingPdfTransfers.delete(payload.id);return pdfStatus('PDF transfer incomplete. Ask teacher to share again.');}const url=URL.createObjectURL(new Blob(t.chunks,{type:'application/pdf'}));incomingPdfTransfers.delete(payload.id);showPdf(url,t.name,1);pdfStatus('PDF received temporarily; not saved to your account.');}
+      });
       room.on(JitsiMeetJS.events.conference.TRACK_ADDED,track=>{
         if(track.isLocal()) return;
         const type=track.getType(), node=document.createElement(type==='video'?'video':'audio');
