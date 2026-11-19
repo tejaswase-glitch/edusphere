@@ -161,7 +161,7 @@ async function startRecording() {
     // Android Chrome may reject MediaRecorder.start() if canvas.captureStream()
     // has not produced a frame yet. Draw synchronously before creating the stream.
     drawTeachingFrame();
-    const canvasStream=recordCanvas.captureStream(8);
+    const canvasStream=recordCanvas.captureStream(24);
     const canvasVideoTrack=canvasStream.getVideoTracks()[0];
     if(!canvasVideoTrack || canvasVideoTrack.readyState!=='live') throw new Error('The browser could not create a live recording video track. Update Chrome and retry.');
     const output=new MediaStream([canvasVideoTrack,...micStream.getAudioTracks()]);
@@ -169,7 +169,7 @@ async function startRecording() {
     chunks=[];
     const mimeCandidates=['video/webm;codecs=vp8,opus','video/webm;codecs=vp9,opus','video/webm'];
     const supportedMimes=mimeCandidates.filter(t=>MediaRecorder.isTypeSupported(t));
-    const recorderOptions=[...supportedMimes.map(mimeType=>({mimeType,videoBitsPerSecond:400000,audioBitsPerSecond:64000})),{videoBitsPerSecond:400000,audioBitsPerSecond:64000},{}];
+    const recorderOptions=[...supportedMimes.map(mimeType=>({mimeType,videoBitsPerSecond:2500000,audioBitsPerSecond:128000})),{videoBitsPerSecond:2500000,audioBitsPerSecond:128000},{}];
     let startError=null;
     for(const options of recorderOptions){
       try{
@@ -300,7 +300,7 @@ async function init() {
     await new Promise((resolve,reject)=>{if(window.JitsiMeetJS)return resolve();const s=document.createElement('script');s.src='https://8x8.vc/libs/lib-jitsi-meet.min.js';s.onload=()=>window.JitsiMeetJS?resolve():reject(new Error('Jitsi low-level SDK did not initialize.'));s.onerror=()=>reject(new Error('Could not load the Jitsi meeting SDK.'));document.head.appendChild(s)});
     JitsiMeetJS.init({disableAudioLevels:true});
     status('Opening the shared classroom camera and microphone… Please allow both permissions.');
-    localTracks=await JitsiMeetJS.createLocalTracks({devices:['audio','video'],constraints:{video:{height:{ideal:480,max:720},width:{ideal:854,max:1280}}}});
+    localTracks=await JitsiMeetJS.createLocalTracks({devices:['audio','video'],constraints:{video:{height:{ideal:720,max:720},width:{ideal:1280,max:1280},frameRate:{ideal:30,max:30}}}});
     localAudioTrack=localTracks.find(t=>t.getType()==='audio');
     localVideoTrack=localTracks.find(t=>t.getType()==='video');
     if(!localAudioTrack || !localVideoTrack) throw new Error('Could not create both classroom camera and microphone tracks.');
@@ -348,6 +348,32 @@ async function init() {
       try{if(localAudioTrack.isMuted()){await localAudioTrack.unmute();$('#toggleMic').textContent='Mute Mic';}else{await localAudioTrack.mute();$('#toggleMic').textContent='Unmute Mic';}
       if(micStream)micStream.getAudioTracks().forEach(t=>t.enabled=!localAudioTrack.isMuted());}
       catch(e){status('Microphone control failed: '+(e?.message||e));}
+    });
+    $('#switchCamera').addEventListener('click',async()=>{
+      const button=$('#switchCamera');
+      try{
+        button.disabled=true;button.textContent='Switching…';
+        const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+        if(devices.length<2){status('Only one camera is available on this device.');return;}
+        const currentId=localVideoTrack?.getDeviceId?.() || localVideoTrack?.getTrack?.().getSettings?.().deviceId;
+        const currentIndex=Math.max(0,devices.findIndex(d=>d.deviceId===currentId));
+        const next=devices[(currentIndex+1)%devices.length];
+        const created=await JitsiMeetJS.createLocalTracks({devices:['video'],cameraDeviceId:next.deviceId,constraints:{video:{height:{ideal:720,max:720},width:{ideal:1280,max:1280},frameRate:{ideal:30,max:30}}}});
+        const replacement=created.find(t=>t.getType()==='video');
+        if(!replacement)throw new Error('Could not open the selected camera.');
+        const previous=localVideoTrack;
+        await room.replaceTrack(previous,replacement);
+        try{previous.detach($('#localPreview'));}catch{}
+        localVideoTrack=replacement;
+        await replacement.attach($('#localPreview'));
+        $('#localPreview').style.setProperty('transform','none','important');
+        $('#localPreview').style.setProperty('-webkit-transform','none','important');
+        $('#localPreview').style.setProperty('object-fit','cover','important');
+        localTracks=localTracks.filter(t=>t!==previous);localTracks.push(replacement);
+        cameraStream=null;
+        status('Camera switched to '+(next.label||'the next camera')+'.');
+      }catch(e){status('Could not switch camera: '+(e?.message||e));}
+      finally{button.disabled=false;button.textContent='Front / Back';}
     });
     $('#toggleCamera').addEventListener('click',async()=>{
       try{if(localVideoTrack.isMuted()){await localVideoTrack.unmute();$('#toggleCamera').textContent='Turn Camera Off';}else{await localVideoTrack.mute();$('#toggleCamera').textContent='Turn Camera On';}
