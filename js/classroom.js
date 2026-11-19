@@ -5,7 +5,7 @@ const classId = params.get('classId');
 const status = (s) => { $('#roomStatus').textContent = s; };
 const toast = (s) => { $('#roomToast').textContent = s; };
 let api = null, recorder = null, streams = [], chunks = [], audioContext = null, objectUrl = null;
-let micStream = null, cameraStream = null, recordCanvas = null, recordFrame = 0, modeObserver = null;
+let micStream = null, cameraStream = null, recordCanvas = null, recordFrame = 0, modeObserver = null, recordVideo = null, cameraFacing = 'environment';
 let pdfDoc = null, pdfPage = 1, pdfChannel = null, pdfJs = null, isTeacher = false, currentPdfUrl = null;
 const pdfStatus = (s) => { $('#pdfStatus').textContent = s; };
 async function loadPdfJs() {
@@ -55,14 +55,34 @@ function pdfMode() { return $('#pdfViewer').classList.contains('active') && $('#
 async function ensureCamera() {
   if (cameraStream?.getVideoTracks().some(t=>t.readyState==='live')) return cameraStream;
   try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
-    streams.push(cameraStream); return cameraStream;
+    cameraStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{exact:cameraFacing}},audio:false});
   } catch (e) {
-    cameraStream = await navigator.mediaDevices.getUserMedia({video:true,audio:false});
-    streams.push(cameraStream); return cameraStream;
+    cameraStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:cameraFacing}},audio:false});
+  }
+  streams.push(cameraStream);
+  if (recordVideo) { recordVideo.srcObject=cameraStream; await recordVideo.play().catch(()=>{}); }
+  return cameraStream;
+}
+async function switchRecordingCamera() {
+  if (recorder?.state !== 'recording') { status('Start recording before switching the camera.'); return; }
+  const next = cameraFacing === 'environment' ? 'user' : 'environment';
+  try {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(t=>t.stop());
+      streams = streams.filter(s=>s!==cameraStream);
+      cameraStream = null;
+    }
+    cameraFacing = next;
+    await ensureCamera();
+    status('Camera switched to ' + (next==='user'?'front/selfie':'back/rear') + ' camera. This view will be recorded when the PDF is closed.');
+  } catch(e) {
+    cameraFacing = next==='user'?'environment':'user';
+    status('Could not switch camera: ' + (e?.message || String(e)) + '. Check Chrome camera permission.');
   }
 }
 function stopTracks() {
+  if (recordVideo) { recordVideo.remove(); recordVideo=null; }
+  $('#switchCamera')?.classList.add('hidden');
   if (recordFrame) cancelAnimationFrame(recordFrame);
   recordFrame=0;
   if (modeObserver) modeObserver.disconnect();
@@ -108,7 +128,9 @@ async function startRecording() {
     streams.push(micStream);
     if (!pdfMode()) { status('Requesting camera permission for whiteboard recording…'); await ensureCamera(); }
     video=document.createElement('video'); video.muted=true; video.playsInline=true; video.autoplay=true;
-    video.style.cssText='position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px;top:-10px';
+    video.setAttribute('aria-label','Teacher camera preview');
+    video.style.cssText='position:fixed;width:150px;height:112px;object-fit:cover;right:10px;bottom:86px;z-index:9999;border:2px solid #fff;border-radius:10px;background:#111;box-shadow:0 2px 12px #0008;transform:scaleX(1)';
+    recordVideo=video;
     document.body.appendChild(video);
     if(cameraStream){video.srcObject=cameraStream;await video.play().catch(()=>{});}
     recordCanvas=document.createElement('canvas'); recordCanvas.width=1280; recordCanvas.height=720;
@@ -148,9 +170,10 @@ async function startRecording() {
     });
     modeObserver.observe($('#pdfViewer'),{attributes:true,attributeFilter:['class']});
     $('#recordStart').disabled=true; $('#recordStop').disabled=false; $('#recordStop').classList.remove('hidden');
+    $('#switchCamera').classList.remove('hidden');
     status(pdfMode()?'RECORDING: PDF slides + teacher microphone. Close the PDF to switch to the whiteboard camera.':'RECORDING: whiteboard camera + teacher microphone. Open a PDF to switch to slide recording.');
   } catch(e) {
-    video?.remove(); stopTracks();
+    video?.remove(); recordVideo=null; stopTracks();
     status('Recording did not start: ' + (e?.message || String(e)) + '. Check Chrome site permissions for microphone/camera, then try again.');
     $('#recordStart').disabled=false;
     $('#recordStop').classList.add('hidden');
@@ -164,7 +187,7 @@ function stopRecording() {
   $('#recordStop').disabled = true;
   $('#recordStop').textContent = 'Saving…';
   status('Stopping recording and preparing your video… Please wait.');
-  try { recorder.stop(); }
+  try { if (recorder.state === 'recording') recorder.requestData(); recorder.stop(); }
   catch(e) {
     $('#recordStop').disabled = false;
     $('#recordStop').textContent = 'Stop & Save';
@@ -243,6 +266,7 @@ async function init() {
   pdfChannel.subscribe();
 
   $('#recordStop').addEventListener('click',stopRecording);
+  $('#switchCamera').addEventListener('click',switchRecordingCamera);
 
   try {
     const {data:ticket,error:ticketError}=await sb.functions.invoke('jaas-token',{body:{classId}});
