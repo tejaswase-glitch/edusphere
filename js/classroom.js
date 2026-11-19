@@ -35,9 +35,15 @@ async function sendChat(){
  catch(e){toast('Chat message could not be sent. Check the class connection.');}
 }
 async function enableStudentMic(){
- if(isTeacher||!room||localAudioTrack)return;
- try{const tracks=await JitsiMeetJS.createLocalTracks({devices:['audio']});localAudioTrack=tracks.find(t=>t.getType()==='audio');if(!localAudioTrack)throw new Error('Microphone unavailable.');await room.addTrack(localAudioTrack);localTracks.push(localAudioTrack);$('#enableMic').textContent='Mute microphone';$('#enableMic').dataset.enabled='yes';status('Your microphone is on. The teacher and class can hear you.');}
- catch(e){toast('Could not enable microphone: '+(e.message||e));}
+ if(isTeacher||!room)return;
+ try{
+  if(localAudioTrack){
+   if(localAudioTrack.isMuted()){await localAudioTrack.unmute();$('#enableMic').textContent='Mute microphone';status('Your microphone is on.');}
+   else{await localAudioTrack.mute();$('#enableMic').textContent='Turn microphone on';status('Your microphone is muted.');}
+   return;
+  }
+  const tracks=await JitsiMeetJS.createLocalTracks({devices:['audio']});localAudioTrack=tracks.find(t=>t.getType()==='audio');if(!localAudioTrack)throw new Error('Microphone unavailable.');await room.addTrack(localAudioTrack);localTracks.push(localAudioTrack);$('#enableMic').textContent='Mute microphone';status('Your microphone is on. The teacher and class can hear you.');
+ }catch(e){toast('Could not enable microphone: '+(e.message||e));}
 }
 
 const pdfStatus = (s) => { $('#pdfStatus').textContent = s; };
