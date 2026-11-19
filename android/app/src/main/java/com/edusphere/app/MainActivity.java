@@ -23,6 +23,10 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
+import android.util.Base64;
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import android.webkit.DownloadListener;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
@@ -39,12 +43,15 @@ import androidx.core.content.ContextCompat;
 public class MainActivity extends Activity {
     private static final int MEDIA_PERMISSION_REQUEST = 41;
     private static final int FILE_CHOOSER_REQUEST = 42;
+    private static final int RECORDING_SAVE_REQUEST = 43;
     private WebView webView;
     private PermissionRequest pendingWebPermission;
     private ValueCallback<Uri[]> fileCallback;
     private FrameLayout rootLayout;
     private View splashView;
     private boolean splashFinished = false;
+    private ByteArrayOutputStream recordingBuffer;
+    private String pendingRecordingMime = "video/webm";
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -66,6 +73,7 @@ public class MainActivity extends Activity {
         settings.setAllowContentAccess(true);
         settings.setJavaScriptCanOpenWindowsAutomatically(true);
         settings.setSupportMultipleWindows(false);
+        webView.addJavascriptInterface(new EduSphereBridge(), "EduSphereNative");
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
@@ -197,6 +205,18 @@ public class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == RECORDING_SAVE_REQUEST) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null && recordingBuffer != null) {
+                try (OutputStream out = getContentResolver().openOutputStream(data.getData())) {
+                    if (out == null) throw new Exception("Could not open destination");
+                    recordingBuffer.writeTo(out);
+                    Toast.makeText(this, "Lecture video saved successfully", Toast.LENGTH_LONG).show();
+                } catch (Exception e) {
+                    Toast.makeText(this, "Could not save lecture video", Toast.LENGTH_LONG).show();
+                }
+            } else Toast.makeText(this, "Video save cancelled", Toast.LENGTH_SHORT).show();
+            recordingBuffer = null;
+        }
         if (requestCode == FILE_CHOOSER_REQUEST && fileCallback != null) {
             Uri[] result = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
             fileCallback.onReceiveValue(result);
@@ -210,12 +230,69 @@ public class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
-        new AlertDialog.Builder(this)
+        String url = webView == null ? "" : webView.getUrl();
+        if (url != null && url.contains("classroom.html")) {
+            webView.loadUrl("https://tejaswase-glitch.github.io/edusphere/");
+            return;
+        }
+        webView.evaluateJavascript("(function(){"
+            + "var d=document.querySelector('dialog[open]');if(d){d.close();return 'closed-dialog';}"
+            + "var app=document.getElementById('app');"
+            + "if(app&&!app.hidden&&getComputedStyle(app).display!=='none'){"
+            + "var view=document.getElementById('view');"
+            + "if(view&&view.scrollTop>0){view.scrollTop=0;return 'top';}"
+            + "var side=document.getElementById('sideBrand');"
+            + "var current=document.querySelector('#sideNav [aria-current=page]');"
+            + "if(current&&current.dataset.nav!=='dashboard'&&side){side.click();return 'dashboard';}"
+            + "}"
+            + "if(window.scrollY>0){window.scrollTo({top:0,behavior:'smooth'});return 'top';}"
+            + "return 'exit';})()", value -> {
+                if ("\"dashboard\"".equals(value) || "\"top\"".equals(value) || "\"closed-dialog\"".equals(value)) return;
+                showExitDialog();
+            });
+    }
+
+    private void showExitDialog() {
+        AlertDialog dialog = new AlertDialog.Builder(this)
             .setTitle("Exit EduSphere?")
-            .setMessage("Do you want to exit EduSphere?")
-            .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
-            .setPositiveButton("Exit", (dialog, which) -> finish())
+            .setMessage("Are you sure you want to leave your learning space?")
+            .setNegativeButton("Cancel", (d, which) -> d.dismiss())
+            .setPositiveButton("Exit", (d, which) -> finish())
             .setCancelable(true)
-            .show();
+            .create();
+        dialog.setOnShowListener(v -> {
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.rgb(64, 80, 190));
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.rgb(220, 55, 75));
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setAllCaps(false);
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setAllCaps(false);
+        });
+        dialog.show();
+    }
+
+    private class EduSphereBridge {
+        @JavascriptInterface public void beginRecordingSave(String mimeType) {
+            recordingBuffer = new ByteArrayOutputStream();
+            pendingRecordingMime = mimeType == null ? "video/webm" : mimeType;
+        }
+        @JavascriptInterface public void appendRecordingChunk(String base64) {
+            try {
+                if (recordingBuffer != null && base64 != null) recordingBuffer.write(Base64.decode(base64, Base64.DEFAULT));
+            } catch (Exception ignored) { }
+        }
+        @JavascriptInterface public void finishRecordingSave(String fileName) {
+            runOnUiThread(() -> {
+                if (recordingBuffer == null || recordingBuffer.size() == 0) {
+                    Toast.makeText(MainActivity.this, "No recording data received", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType(pendingRecordingMime);
+                intent.putExtra(Intent.EXTRA_TITLE, fileName == null ? "EduSphere-Lecture.webm" : fileName);
+                try { startActivityForResult(intent, RECORDING_SAVE_REQUEST); }
+                catch (Exception e) { Toast.makeText(MainActivity.this, "Unable to open save location", Toast.LENGTH_LONG).show(); }
+            });
+        }
+        @JavascriptInterface public void cancelRecordingSave() { recordingBuffer = null; }
     }
 }
