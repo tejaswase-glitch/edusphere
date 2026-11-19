@@ -478,7 +478,7 @@ async function init() {
     if(!ticket?.token || !ticket?.roomName || !ticket?.appId) throw new Error(ticket?.error || 'Secure meeting token missing.');
     await new Promise((resolve,reject)=>{if(window.JitsiMeetJS)return resolve();const s=document.createElement('script');s.src='https://8x8.vc/libs/lib-jitsi-meet.min.js';s.onload=()=>window.JitsiMeetJS?resolve():reject(new Error('Jitsi low-level SDK did not initialize.'));s.onerror=()=>reject(new Error('Could not load the Jitsi meeting SDK.'));document.head.appendChild(s)});
     JitsiMeetJS.init({disableAudioLevels:true});
-    status('Opening the shared classroom camera and microphone… Please allow both permissions.');
+    status('Opening the teacher microphone… The camera stays off until you turn it on.');
     if(isTeacher){
       localTracks=await JitsiMeetJS.createLocalTracks({devices:['audio']});
       localAudioTrack=localTracks.find(t=>t.getType()==='audio');localVideoTrack=null;
