@@ -95,6 +95,7 @@ function finishRecording() {
   const mime = recorder?.mimeType || 'video/webm';
   const blob = new Blob(chunks, {type:mime});
   $('#recordStart').disabled = false;
+  $('#recordStart').textContent = '● Start Recording';
   $('#recordStop').disabled = true;
   $('#recordStop').classList.add('hidden');
   stopTracks();
@@ -119,6 +120,7 @@ async function startRecording() {
   $('#recordStart').disabled=true; $('#recordStart').textContent='Starting…';
   status('Consent accepted. Checking recording support…');
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+    $('#recordStart').disabled=false; $('#recordStart').textContent='● Start Recording';
     status('Recording is not supported in this browser. Open this classroom in the latest Chrome browser.'); return;
   }
   let video=null;
@@ -138,8 +140,11 @@ async function startRecording() {
       await video.play();
       if(video.readyState<2) await new Promise((resolve,reject)=>{
         const timer=setTimeout(()=>reject(new Error('Camera opened but no video frames arrived. Turn the Jitsi camera off and retry.')),6000);
-        video.addEventListener('loadeddata',()=>{clearTimeout(timer);resolve();},{once:true});
-        video.addEventListener('error',()=>{clearTimeout(timer);reject(new Error('Camera video could not be read by the recorder.'));},{once:true});
+        const ready=()=>{clearTimeout(timer);resolve();};
+        const failed=()=>{clearTimeout(timer);reject(new Error('Camera video could not be read by the recorder.'));};
+        video.addEventListener('loadeddata',ready,{once:true});
+        video.addEventListener('error',failed,{once:true});
+        if(video.readyState>=2) ready();
       });
       if(!video.videoWidth||!video.videoHeight) throw new Error('Camera is active but video frames are unavailable. Turn the Jitsi camera off and retry.');
     }
