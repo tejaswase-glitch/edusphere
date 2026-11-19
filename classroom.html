@@ -39,8 +39,8 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101a35;col
 </head>
 <body>
 <div class="room-shell">
-<header class="room-head"><div><h1 id="roomTitle">EduSphere Live Classroom</h1><small id="roomUser">Secure class session</small></div><div class="room-actions"><button id="recordStart" class="record-start hidden" type="button">● Start Class Recording</button><button id="recordStop" class="record-stop hidden" type="button" disabled>Stop Recording</button><button id="leaveRoom" class="leave" type="button">Leave Class</button></div></header>
-<div class="record-note" id="recordNote">Teacher recording is optional. This separate classroom page keeps the EduSphere dashboard outside the recording. On Android, use the phone's built-in screen recorder while this page is open. Record only with the required consent.</div>
+<header class="room-head"><div><h1 id="roomTitle">EduSphere Live Classroom</h1><small id="roomUser">Secure class session</small></div><div class="room-actions"><button id="recordStart" class="record-start hidden" type="button">● Start Recording</button><button id="recordStop" class="record-stop hidden" type="button" disabled>Stop & Save</button><button id="leaveRoom" class="leave" type="button">Leave Class</button></div></header>
+<div class="record-note" id="recordNote">Combined recording saves the teacher microphone and current teaching view: PDF slides or rear camera/whiteboard. Student audio/video and the dashboard are excluded. Get consent first.</div>
 <div class="room-status" id="roomStatus">Connecting to secure classroom…</div>
 <div class="pdf-tools" id="pdfTools"><label id="pdfUploadLabel" class="hidden">Share PDF in class <input id="pdfFile" type="file" accept="application/pdf,.pdf"></label><span id="pdfStatus">Teacher can present a PDF here.</span></div>
 <section class="pdf-viewer" id="pdfViewer"><div class="pdf-bar"><b id="pdfName">Class PDF</b><button id="pdfPrev" type="button">Previous</button><span id="pdfPage">Page 0 / 0</span><button id="pdfNext" type="button">Next</button><button id="pdfClose" type="button">Close PDF</button></div><div class="pdf-canvas-wrap"><canvas id="pdfCanvas"></canvas></div><div class="pdf-message" id="pdfMessage"></div></section>
@@ -48,5 +48,5 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101a35;col
 <div class="room-toast" id="roomToast" role="status" aria-live="polite"></div>
 </div>
 <script src="config.js"></script>
-<script type="module" src="js/classroom.js?v=20261119-teacher-participant-leavefix"></script>
+<script type="module" src="js/classroom.js?v=20261119-combined-lecture-recorder"></script>
 </body></html>
