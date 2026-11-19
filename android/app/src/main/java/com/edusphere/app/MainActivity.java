@@ -27,6 +27,7 @@ import android.webkit.JavascriptInterface;
 import android.util.Base64;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import android.webkit.DownloadListener;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
@@ -94,13 +95,22 @@ public class MainActivity extends Activity {
         webView.setWebChromeClient(new WebChromeClient() {
             @Override public void onPermissionRequest(PermissionRequest request) {
                 runOnUiThread(() -> {
-                    boolean camera = ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
-                    boolean mic = ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
-                    if (camera && mic) request.grant(request.getResources());
-                    else {
+                    ArrayList<String> needed = new ArrayList<>();
+                    for (String resource : request.getResources()) {
+                        if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)
+                            && ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                            needed.add(Manifest.permission.CAMERA);
+                        } else if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)
+                            && ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                            needed.add(Manifest.permission.RECORD_AUDIO);
+                        }
+                    }
+                    if (needed.isEmpty()) {
+                        request.grant(request.getResources());
+                    } else {
                         pendingWebPermission = request;
                         ActivityCompat.requestPermissions(MainActivity.this,
-                            new String[]{Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO}, MEDIA_PERMISSION_REQUEST);
+                            needed.toArray(new String[0]), MEDIA_PERMISSION_REQUEST);
                     }
                 });
             }
@@ -195,8 +205,13 @@ public class MainActivity extends Activity {
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == MEDIA_PERMISSION_REQUEST && pendingWebPermission != null) {
-            boolean ok = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
-                && ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+            boolean ok = true;
+            for (String resource : pendingWebPermission.getResources()) {
+                if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)
+                    && ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) ok = false;
+                if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)
+                    && ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) ok = false;
+            }
             if (ok) pendingWebPermission.grant(pendingWebPermission.getResources());
             else pendingWebPermission.deny();
             pendingWebPermission = null;
