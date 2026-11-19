@@ -129,7 +129,7 @@ async function startRecording() {
     if (!pdfMode()) { status('Requesting camera permission for whiteboard recording…'); await ensureCamera(); }
     video=document.createElement('video'); video.muted=true; video.playsInline=true; video.autoplay=true;
     video.setAttribute('aria-label','Teacher camera preview');
-    video.style.cssText='position:fixed;width:150px;height:112px;object-fit:cover;right:10px;bottom:86px;z-index:9999;border:2px solid #fff;border-radius:10px;background:#111;box-shadow:0 2px 12px #0008;transform:scaleX(1)';
+    video.style.cssText='position:fixed;left:0;right:0;top:112px;bottom:36px;width:100vw;height:calc(100dvh - 148px);max-height:calc(100vh - 148px);object-fit:contain;z-index:24;border:0;border-radius:0;background:#000;box-shadow:none;transform:scaleX(1);display:block';
     recordVideo=video;
     document.body.appendChild(video);
     if(cameraStream){video.srcObject=cameraStream;await video.play().catch(()=>{});}
@@ -137,6 +137,7 @@ async function startRecording() {
     const ctx=recordCanvas.getContext('2d');
     const paint=()=>{
       ctx.fillStyle='#fff'; ctx.fillRect(0,0,1280,720);
+      if(video) video.style.display = pdfMode() ? 'none' : 'block';
       if(pdfMode()){
         const source=$('#pdfCanvas');
         if(source.width>0&&source.height>0){
