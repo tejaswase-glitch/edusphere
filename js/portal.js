@@ -30,8 +30,14 @@ const sidebar = () => $('#sidebar');
 export function mountPortal() {
   const p = state.profile;
   document.body.dataset.view = 'app';
-  $('#site').hidden = true; $('#site').style.display = 'none';
-  $('#app').hidden = false; $('#app').style.display = 'block';
+  document.documentElement.classList.add('edusphere-app');
+  const publicSite = $('#site');
+  publicSite.hidden = true;
+  publicSite.setAttribute('aria-hidden', 'true');
+  publicSite.inert = true;
+  publicSite.style.setProperty('display', 'none', 'important');
+  $('#app').hidden = false;
+  $('#app').style.setProperty('display', 'block', 'important');
   $('#avatar').textContent = initials(p.full_name);
   $('#whoName').textContent = ' ' + (p.full_name || p.role);
   $('#sideNav').innerHTML = NAV[p.role].map(([id, label, ic]) => `<button type="button" data-nav="${id}">${svg(ic, 22)}<span>${esc(label)}</span></button>`).join('');
@@ -45,8 +51,13 @@ export function unmountPortal() {
   closeSidebar();
   $('#view').innerHTML = ''; $('#sideNav').innerHTML = ''; $('#whoName').textContent = ''; $('#avatar').textContent = '';
   document.body.dataset.view = 'site';
+  document.documentElement.classList.remove('edusphere-app');
   $('#app').hidden = true; $('#app').style.display = 'none';
-  $('#site').hidden = false; $('#site').style.display = '';
+  const publicSite = $('#site');
+  publicSite.hidden = false;
+  publicSite.removeAttribute('aria-hidden');
+  publicSite.inert = false;
+  publicSite.style.removeProperty('display');
   window.scrollTo(0, 0);
 }
 
