@@ -85,14 +85,17 @@ function finishRecording() {
 }
 async function startRecording() {
   if (!confirm('Record the teacher microphone and teaching view only (PDF slides or whiteboard camera)? Student audio/video will not be included. Make sure everyone has consented.')) return;
+  status('Consent accepted. Checking recording support…');
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
-    toast('This browser does not support local lecture recording. Open EduSphere in the latest Chrome browser.'); return;
+    status('Recording is not supported in this browser. Open this classroom in the latest Chrome browser.'); return;
   }
   let video=null;
   try {
+    status('Requesting microphone permission. Please allow the microphone popup if it appears…');
     micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false});
+    status('Microphone allowed. Preparing the teaching video…');
     streams.push(micStream);
-    if (!pdfMode()) await ensureCamera();
+    if (!pdfMode()) { status('Requesting camera permission for whiteboard recording…'); await ensureCamera(); }
     video=document.createElement('video'); video.muted=true; video.playsInline=true; video.autoplay=true;
     video.style.cssText='position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px;top:-10px';
     document.body.appendChild(video);
@@ -131,11 +134,13 @@ async function startRecording() {
       }
     });
     modeObserver.observe($('#pdfViewer'),{attributes:true,attributeFilter:['class']});
-    $('#recordStart').disabled=true; $('#recordStop').classList.remove('hidden');
-    toast(pdfMode()?'Recording PDF slides + teacher microphone. Close the PDF to switch to the whiteboard camera.':'Recording whiteboard camera + teacher microphone. Open a PDF to switch to slide recording.');
+    $('#recordStart').disabled=true; $('#recordStop').disabled=false; $('#recordStop').classList.remove('hidden');
+    status(pdfMode()?'RECORDING: PDF slides + teacher microphone. Close the PDF to switch to the whiteboard camera.':'RECORDING: whiteboard camera + teacher microphone. Open a PDF to switch to slide recording.');
   } catch(e) {
     video?.remove(); stopTracks();
-    toast(e.message || 'Could not start lecture recording. Check microphone/camera permission and try again.');
+    status('Recording did not start: ' + (e?.message || String(e)) + '. Check Chrome site permissions for microphone/camera, then try again.');
+    $('#recordStart').disabled=false;
+    $('#recordStop').classList.add('hidden');
   }
 }
 function stopRecording() { if (recorder && recorder.state !== 'inactive') recorder.stop(); }
