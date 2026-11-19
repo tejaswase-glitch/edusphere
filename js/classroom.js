@@ -59,7 +59,7 @@ function finishRecording() {
 async function startRecording() {
   if (!confirm('Record this class page only? Make sure everyone who may be recorded has given consent.')) return;
   if (!navigator.mediaDevices?.getDisplayMedia || !window.MediaRecorder) {
-    toast('Browser recording is not supported here. On Android, use the phone Screen Recorder while this dedicated classroom page is open. Do not switch to the dashboard during recording.');
+    toast('Android browser recording is unavailable on this device. Use Android Quick Settings → Screen recorder → choose Media sounds (and mic if needed) → Start. Return to this classroom and keep it open. Stop from the notification shade when finished. This records the visible screen and may include participant audio/video; get consent first.');
     return;
   }
   let display;
