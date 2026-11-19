@@ -3,7 +3,8 @@ import { sb, state, $ } from './core.js';
 const params = new URLSearchParams(location.search);
 const classId = params.get('classId');
 const status = (s) => { $('#roomStatus').textContent = s; };
-const toast = (s) => { $('#roomToast').textContent = s; };
+let roomToastTimer = null;
+const toast = (s) => { const el=$('#roomToast'); if(!el)return; el.textContent=s; el.classList.add('show'); clearTimeout(roomToastTimer); roomToastTimer=setTimeout(()=>el.classList.remove('show'),4000); };
 let api = null, connection = null, room = null, recorder = null, streams = [], chunks = [], audioContext = null, objectUrl = null;
 let localTracks = [], localAudioTrack = null, localVideoTrack = null, remoteTrackNodes = new Map();
 let micStream = null, cameraStream = null, recordCanvas = null, recordFrame = 0, modeObserver = null, recordVideo = null, cameraFacing = 'environment';
@@ -329,6 +330,7 @@ async function init() {
   if (c.status !== 'scheduled') { if (c.status === 'completed' || c.status === 'ended') { status('This class has ended.'); showClassEnded(); } else status('This class is unavailable.'); return; }
   const teacher = profile.role === 'admin' || (profile.role === 'teacher' && c.created_by === profile.id);
   isTeacher = teacher;
+  if(!teacher){['pdfPrev','pdfNext','pdfClose'].forEach(id=>$('#'+id)?.classList.add('hidden'));}
   if (profile.role === 'student' && !c.is_published) { status('This class is not published for students.'); return; }
   if(!teacher){$('#recordNote').classList.add('hidden');$('#localPreview')?.closest('.participant-tile')?.classList.add('hidden');$('#toggleCamera')?.classList.add('hidden');$('#switchCamera')?.classList.add('hidden');$('#toggleMic')?.classList.add('hidden');}
   $('#roomTitle').textContent = c.title || 'EduSphere Live Classroom';
@@ -429,6 +431,7 @@ async function init() {
     connection=new JitsiMeetJS.JitsiConnection(null,ticket.token,options);
     connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,async()=>{
       room=connection.initJitsiConference(roomOnly,options);
+       try{room.setDisplayName?.(state.profile?.full_name||state.profile?.role||'Participant');}catch{}
       room.on(JitsiMeetJS.events.conference.ENDPOINT_MESSAGE_RECEIVED,(sender,payload)=>{
         if(!payload)return;
         if(payload.edusphereChat===true && typeof payload.message==='string'){
