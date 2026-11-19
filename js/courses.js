@@ -39,7 +39,7 @@ export async function coursesView(el) {
   }
   function drawSubjects() {
     if (!admin) return;
-    $('#subCard', el).innerHTML = `<h3>Subjects</h3>${subjects.length ? `<div class="list">${subjects.map(s => `<div class="row"><div class="main"><b>${esc(s.name)}</b></div><span class="badge ${s.is_active ? 'ok' : 'mute'}">${s.is_active ? 'Active' : 'Hidden'}</span><div class="actions"><button class="btn btn-soft btn-sm" data-act="subToggle" data-id="${esc(s.id)}" type="button">${s.is_active ? 'Hide' : 'Show'}</button><button class="btn btn-outline-danger btn-sm" data-act="subDel" data-id="${esc(s.id)}" type="button">Delete</button></div></div>`).join('')}</div>` : empty('No subjects yet (or run migration 002).')}
+    $('#subCard', el).innerHTML = `<h3>Subjects</h3>${subjects.length ? `<div class="list">${subjects.map(s => `<div class="row"><div class="main"><b>${esc(s.name)}</b></div><span class="badge ${s.is_active ? 'ok' : 'mute'}">${s.is_active ? 'Active' : 'Hidden'}</span><div class="actions"><button class="btn btn-soft btn-sm" data-act="subEdit" data-id="${esc(s.id)}" type="button">Rename</button><button class="btn btn-soft btn-sm" data-act="subToggle" data-id="${esc(s.id)}" type="button">${s.is_active ? 'Hide' : 'Show'}</button><button class="btn btn-outline-danger btn-sm" data-act="subDel" data-id="${esc(s.id)}" type="button">Delete</button></div></div>`).join('')}</div>` : empty('No subjects yet (or run migration 002).')}
       <form id="subForm" class="form" style="margin-top:12px;grid-template-columns:1fr auto;align-items:end" novalidate><label>New subject<input name="name" required maxlength="60"></label><button class="btn btn-primary" type="submit">Add subject</button></form>`;
     $('#subForm', el).addEventListener('submit', async e => {
       e.preventDefault(); const name = String(new FormData(e.currentTarget).get('name')).trim(); if (!name) return;
@@ -57,6 +57,7 @@ export async function coursesView(el) {
       if (!await confirmDialog({ title: 'Delete this course?', text: `"${c.title}" will be removed. Materials and classes linked to it stay, but lose the course link. This is recorded in the audit log.`, confirm: 'Delete course' })) return;
       const { data, error } = await sb.from('courses').delete().eq('id', id).select('id'); if (error) return fail(error); if (!data?.length) return toast('Not allowed.', 'bad'); toast('Course deleted.', 'good'); await load();
     },
+    subEdit: async ({ id }) => { const s=subjects.find(x=>x.id===id); const name=prompt('Enter the new subject name:',s.name); if(name===null)return; const clean=name.trim(); if(!clean)return toast('Subject name cannot be empty.','bad'); const {error}=await sb.from('subjects').update({name:clean}).eq('id',id); if(error)return fail(error); toast('Subject renamed.','good'); await load(); },
     subToggle: async ({ id }) => { const s = subjects.find(x => x.id === id); const { error } = await sb.from('subjects').update({ is_active: !s.is_active }).eq('id', id); if (error) return fail(error); await load(); },
     subDel: async ({ id }) => {
       const s = subjects.find(x => x.id === id);
