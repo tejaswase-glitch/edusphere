@@ -137,11 +137,20 @@ async function sendPdfState(event, payload) {
 function pdfMode() { return $('#pdfViewer').classList.contains('active') && $('#pdfCanvas').width > 0; }
 async function ensureCamera() {
   const sourceTrack = localVideoTrack?.getTrack?.();
-  if (!sourceTrack || sourceTrack.readyState !== 'live' || localVideoTrack.isMuted()) throw new Error('The classroom camera is off or unavailable. Turn the classroom camera on and retry.');
+  const preview = $('#localPreview');
+  // Jitsi's isMuted() flag can briefly remain true on Android even while its
+  // underlying camera track is producing frames. Validate the real browser
+  // MediaStreamTrack and the classroom preview instead of relying on that flag.
+  if (!sourceTrack || sourceTrack.readyState !== 'live' || sourceTrack.enabled === false) {
+    throw new Error('The classroom camera is off or unavailable. Turn the classroom camera on and retry.');
+  }
+  if (!preview || preview.readyState < 2 || !preview.videoWidth || !preview.videoHeight) {
+    throw new Error('The classroom camera preview is not ready yet. Wait until your camera picture appears, then retry recording.');
+  }
   // Keep a MediaStream wrapper for track validation only. Do not attach the
   // Jitsi-owned camera track to a second video element: Android Chrome can
   // reject that second video source with "Could not start video source".
-  if (!cameraStream || !cameraStream.getVideoTracks().some(t=>t.readyState==='live')) {
+  if (!cameraStream || !cameraStream.getVideoTracks().some(t=>t.readyState==='live' && t.enabled)) {
     cameraStream = new MediaStream([sourceTrack]);
   }
   return cameraStream;
