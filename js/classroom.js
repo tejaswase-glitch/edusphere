@@ -357,7 +357,7 @@ async function init() {
     $('#pdfViewer').classList.remove('active');document.querySelector('.room-shell')?.classList.remove('pdf-active');pdfDoc=null;
     if(isTeacher) await sendPdfState('pdf-presentation',{closed:true});
   });
-  pdfChannel = sb.channel('class-pdf-' + classId);
+  pdfChannel = sb.channel('class-pdf-' + classId,{config:{broadcast:{self:false}}});
   pdfChannel.on('broadcast',{event:'pdf-presentation'},({payload})=>{if(!isTeacher){if(payload?.closed){$('#pdfViewer').classList.remove('active');pdfDoc=null;}else if(payload?.url) showPdf(payload.url,payload.name,payload.page);}});
   pdfChannel.on('broadcast',{event:'pdf-page'},({payload})=>{if(!isTeacher && pdfDoc) renderPdfPage(payload.page);});
   pdfChannel.on('broadcast',{event:'class-chat'},({payload})=>{if(payload?.message)addChatMessage(payload.name||'Participant',String(payload.message).slice(0,500));});
@@ -381,8 +381,8 @@ async function init() {
   $('#showRoster')?.addEventListener('click',()=>{const p=$('#rosterPanel');const opening=p?.classList.contains('hidden');$('#chatPanel')?.classList.add('hidden');p?.classList.toggle('hidden');});
   document.addEventListener('click',e=>{
     if(!e.target.closest('.menu-wrap')){$('#controlMenu')?.classList.remove('open');$('#menuToggle')?.setAttribute('aria-expanded','false');}
-    const action=e.target.closest('#controlMenu button');
-    if(action && action.id!=='menuToggle') { $('#controlMenu')?.classList.remove('open');$('#menuToggle')?.setAttribute('aria-expanded','false'); }
+    const action=e.target.closest('#controlMenu button, #controlMenu label');
+    if(action && action.id!=='menuToggle' && !e.target.closest('#pdfUploadLabel')) { $('#controlMenu')?.classList.remove('open');$('#menuToggle')?.setAttribute('aria-expanded','false'); }
   });
   $('#endForStudents')?.addEventListener('click',async()=>{
     if(!isTeacher)return;
