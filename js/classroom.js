@@ -167,16 +167,26 @@ function finishRecording() {
   }
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = objectUrl;
-  a.download = 'edusphere-lecture-' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.webm';
-  a.textContent = '⬇ Download Lecture Video';
-  a.setAttribute('role','button');
-  a.style.cssText = 'display:block;width:max-content;max-width:100%;margin:12px auto;padding:14px 18px;border-radius:10px;background:#e8f4ed;color:#174c31;font-size:16px;font-weight:800;text-decoration:none;text-align:center';
   const panel = $('#roomToast');
   panel.classList.add('show');
-  panel.style.cssText = 'display:block;position:fixed;z-index:10000;left:12px;right:12px;bottom:16px;max-height:45vh;overflow:auto;padding:16px;background:#172447;color:#fff;border:2px solid #8bd5a8;border-radius:14px;box-shadow:0 8px 30px #0009;text-align:center;font-size:15px;line-height:1.5';
-  panel.replaceChildren(document.createTextNode('Recording ready (' + (blob.size/1024/1024).toFixed(2) + ' MB). Tap below to download and save it to your phone.'), a);
+  panel.style.cssText = 'display:block;position:fixed;z-index:2147483000;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom, 0px));width:auto;max-height:45vh;overflow:auto;padding:16px;background:#172447;color:#fff;border:2px solid #8bd5a8;border-radius:14px;box-shadow:0 8px 30px #0009;text-align:center;font-size:15px;line-height:1.5;pointer-events:auto';
+  const message = document.createElement('div');
+  message.textContent = 'Recording ready (' + (blob.size/1024/1024).toFixed(2) + ' MB). Tap the large button below to download and save it to your phone.';
+  const downloadButton = document.createElement('button');
+  downloadButton.type = 'button';
+  downloadButton.textContent = '⬇  DOWNLOAD LECTURE VIDEO';
+  downloadButton.style.cssText = 'display:block;position:relative;z-index:1;pointer-events:auto;width:100%;min-height:60px;margin:14px 0 0;padding:16px 12px;border:0;border-radius:12px;background:#a8edc0;color:#123d25;font-size:17px;font-weight:900;touch-action:manipulation;cursor:pointer';
+  downloadButton.addEventListener('click', () => {
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = 'edusphere-lecture-' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.webm';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    downloadButton.textContent = '✓ DOWNLOAD REQUESTED — CHECK CHROME DOWNLOADS';
+  });
+  panel.replaceChildren(message, downloadButton);
   status('Recording is ready. Tap Download Lecture Video to save it to your phone.');
 }
 async function startRecording() {
