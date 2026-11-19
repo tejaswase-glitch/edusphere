@@ -113,39 +113,9 @@ export async function classesView(el) {
   }
 
   async function joinJitsi(c) {
-    closeJitsi();
-    $('#jitsiTitle', el).textContent = c.title;
-    $('#jitsiStage', el).hidden = false;
-    $('#jitsiStage', el).scrollIntoView({ behavior: 'smooth', block: 'start' });
-    try {
-      await loadJitsi();
-      const { data: authData } = await sb.auth.getSession();
-      if (!authData?.session) throw new Error('Your EduSphere session has expired. Please sign in again.');
-      const { data: ticket, error: ticketError } = await sb.functions.invoke('jaas-token', { body: { classId: c.id } });
-      if (ticketError) {
-        let message = ticketError.message || 'Could not authorize this JaaS class.';
-        try { message = (await ticketError.context.json()).error || message; } catch {}
-        throw new Error(message);
-      }
-      if (!ticket?.token || !ticket?.roomName) throw new Error(ticket?.error || 'The secure JaaS token was not returned.');
-      jitsiApi = new window.JitsiMeetExternalAPI('8x8.vc', {
-        roomName: ticket.roomName,
-        jwt: ticket.token,
-        parentNode: $('#jitsiFrame', el),
-        width: '100%',
-        height: '100%',
-        userInfo: { displayName: state.profile.full_name || 'EduSphere participant' },
-        configOverwrite: {
-          prejoinConfig: { enabled: false },
-          disableInitialGUM: true,
-          startWithAudioMuted: true,
-          startWithVideoMuted: true,
-          toolbarButtons: ['microphone', 'camera', 'desktop', 'chat', 'participants-pane', 'raisehand', 'tileview', 'fullscreen', 'settings', 'hangup', 'select-background', 'videoquality']
-        },
-        interfaceConfigOverwrite: { MOBILE_APP_PROMO: false, SHOW_JITSI_WATERMARK: false }
-      });
-      jitsiApi.addListener('readyToClose', closeJitsi);
-    } catch (err) { closeJitsi(); toast(err.message || 'Could not open the Jitsi class.', 'bad'); }
+    if (!c?.id) return toast('Class details are missing.', 'bad');
+    // Open the meeting in its own page so dashboard/navigation never appears in a class-tab recording.
+    location.href = './classroom.html?classId=' + encodeURIComponent(c.id);
   }
 
   async function load() {
