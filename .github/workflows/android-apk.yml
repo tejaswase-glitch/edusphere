@@ -28,14 +28,14 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build installable debug APK
+      - name: Build EduSphere Android APK
         working-directory: android
         run: gradle --no-daemon assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: EduSphere-Android-Demo-APK
+          name: EduSphere-Android-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
