@@ -60,7 +60,8 @@ const ctx = await newCtx(); let p = await open(ctx);
 // ---------- Public homepage ----------
 await step('Homepage: hero, 4 subject cards, banner, 4 feature cards, footer', async () => {
   expect(await p.textContent('.hero h1') .then(t => /Welcome to\s*EduSphere/.test(t)), 'hero heading');
-  expect((await p.$$('.subject-card')).length === 4, '4 subject cards');
+  await p.waitForFunction(() => document.querySelectorAll('.subject-card').length === 4, null, { timeout: 5000 });
+  expect((await p.$('.subject-card')).length === 4, '4 admin-configured subject cards');
   for (const s of ['Biology', 'Mathematics', 'Physics', 'Chemistry']) expect(await p.isVisible(`.subject-card h3:has-text("${s}")`), s);
   expect(await p.isVisible('.banner-cta'), 'banner'); expect((await p.$$('.feature-row li')).length === 4, 'features');
   for (const t of ['Video Lectures', 'Live Classes', 'Study Materials', 'Certificates']) expect(await p.isVisible(`.feature-row b:has-text("${t}")`), t);
