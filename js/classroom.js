@@ -9,6 +9,31 @@ let localTracks = [], localAudioTrack = null, localVideoTrack = null, remoteTrac
 let micStream = null, cameraStream = null, recordCanvas = null, recordFrame = 0, modeObserver = null, recordVideo = null, cameraFacing = 'environment';
 let pdfDoc = null, pdfPage = 1, pdfChannel = null, pdfJs = null, isTeacher = false, currentPdfUrl = null, pendingPdfFile = null;
 const incomingPdfTransfers = new Map();
+let classEndedForStudents = false;
+const participantNames = new Map();
+function showClassEnded(){
+  const shell=document.querySelector('.room-shell');
+  if(shell){shell.innerHTML='<main class="ended-screen"><div class="ended-card"><h1>Class ended</h1><p>The teacher has ended this class. Thank you for joining EduSphere.</p></div></main>';}
+}
+function renderRoster(){
+  const list=$('#participantList'); if(!list)return;
+  const entries=[['You ('+(state.profile?.full_name||state.profile?.role||'Participant')+')',true],...Array.from(participantNames.entries()).map(([id,name])=>[name,false])];
+  list.innerHTML=entries.map(([name,local])=>'<li>'+ (local?'● ':'') + name.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) + '</li>').join('');
+  $('#participantCount').textContent=String(entries.length);
+}
+function addChatMessage(name,message,own=false){
+ const box=$('#chatMessages');if(!box)return;
+ const item=document.createElement('p');item.className='chat-line'+(own?' own':'');
+ const who=document.createElement('b');who.textContent=name+': ';
+ const body=document.createElement('span');body.textContent=message;
+ item.append(who,body);box.append(item);box.scrollTop=box.scrollHeight;
+}
+function sendChat(){
+ const input=$('#chatInput'),message=(input?.value||'').trim();if(!message||!room)return;
+ const payload={edusphereChat:true,name:state.profile?.full_name||state.profile?.role||'Participant',message:message.slice(0,500),sentAt:Date.now()};
+ try{room.sendEndpointMessage('',payload);addChatMessage(payload.name,payload.message,true);input.value='';}catch(e){toast('Chat message could not be sent. Check the class connection.');}
+}
+
 const pdfStatus = (s) => { $('#pdfStatus').textContent = s; };
 async function loadPdfJs() {
   if (pdfJs) return pdfJs;
@@ -258,7 +283,7 @@ function bindLeaveButton() {
   button.dataset.bound = 'yes';
   button.addEventListener('click', async () => {
     if (button.dataset.leaving === 'yes') return;
-    if (recorder?.state === 'recording' && !confirm('A recording is running. Stop it before leaving?')) return;
+    if (recorder?.state === 'recording' && !confirm('A recording is running. Stop it before leaving? Your video must finish processing before you leave.')) return;
     button.dataset.leaving = 'yes';
     button.disabled = true;
     button.textContent = 'Leaving…';
@@ -293,6 +318,7 @@ async function init() {
   if (teacher) {
     $('#pdfUploadLabel').classList.remove('hidden');
     $('#recordStart').classList.remove('hidden');
+    $('#endForStudents').classList.remove('hidden');
     $('#recordNote').textContent = 'One combined recorder: while a PDF is open it records the slides; when the PDF is closed it records the rear camera/whiteboard. Only the teacher microphone is added. Student audio/video and the dashboard are excluded. The video is saved locally; get consent first.';
   } else $('#recordNote').classList.add('hidden');
   $('#recordStart').addEventListener('click',startRecording);
@@ -307,13 +333,26 @@ async function init() {
   $('#pdfPrev').addEventListener('click',async()=>{if(isTeacher && pdfDoc){await renderPdfPage(pdfPage-1);await sendPdfState('pdf-page',{page:pdfPage});}});
   $('#pdfNext').addEventListener('click',async()=>{if(isTeacher && pdfDoc){await renderPdfPage(pdfPage+1);await sendPdfState('pdf-page',{page:pdfPage});}});
   $('#pdfClose').textContent='← Back to Camera';$('#pdfSave').classList.add('hidden');$('#pdfSave').disabled=false;$('#pdfSave').textContent='Save to EduSphere';
-  $('#pdfClose').addEventListener('click',async()=>{if(isTeacher){$('#pdfViewer').classList.remove('active');document.querySelector('.room-shell')?.classList.remove('pdf-active');pdfDoc=null;await sendPdfState('pdf-presentation',{closed:true});}});
+  $('#pdfClose').addEventListener('click',async()=>{
+    $('#pdfViewer').classList.remove('active');document.querySelector('.room-shell')?.classList.remove('pdf-active');pdfDoc=null;
+    if(isTeacher) await sendPdfState('pdf-presentation',{closed:true});
+  });
   pdfChannel = sb.channel('class-pdf-' + classId);
   pdfChannel.on('broadcast',{event:'pdf-presentation'},({payload})=>{if(!isTeacher){if(payload?.closed){$('#pdfViewer').classList.remove('active');pdfDoc=null;}else if(payload?.url) showPdf(payload.url,payload.name,payload.page);}});
   pdfChannel.on('broadcast',{event:'pdf-page'},({payload})=>{if(!isTeacher && pdfDoc) renderPdfPage(payload.page);});
   pdfChannel.subscribe();
 
   $('#recordStop').addEventListener('click',stopRecording);
+  $('#chatSend')?.addEventListener('click',sendChat);
+  $('#chatInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat();}});
+  $('#endForStudents')?.addEventListener('click',()=>{
+    if(!isTeacher)return;
+    if(!confirm('End this class for all students? You will remain in the classroom to finish and save your recording.'))return;
+    try{room?.sendEndpointMessage('',{edusphereClassAction:'end'});}catch(e){toast('Could not notify students. Check the class connection.');return;}
+    $('#endForStudents').disabled=true;$('#endForStudents').textContent='Class ended for students';
+    status('Class ended for students. You are still in the classroom. Stop & Save your recording, wait for the video-ready message, then Leave Class.');
+    toast('Students have been dismissed. You can finish saving your recording now.');
+  });
   
 
   try {
@@ -346,7 +385,19 @@ async function init() {
     connection.addEventListener(JitsiMeetJS.events.connection.CONNECTION_ESTABLISHED,async()=>{
       room=connection.initJitsiConference(roomOnly,options);
       room.on(JitsiMeetJS.events.conference.ENDPOINT_MESSAGE_RECEIVED,(sender,payload)=>{
-        if(isTeacher||!payload||!payload.eduspherePdf)return;
+        if(!payload)return;
+        if(payload.edusphereChat===true && typeof payload.message==='string'){
+          const senderId=String(sender||'');
+          const ownName=state.profile?.full_name||'';
+          addChatMessage(payload.name||'Participant',payload.message.slice(0,500),false);
+          return;
+        }
+        if(payload.edusphereClassAction==='end' && !isTeacher){
+          classEndedForStudents=true;status('The teacher has ended this class.');
+          try{room?.leave();}catch{} try{connection?.disconnect();}catch{}
+          showClassEnded();return;
+        }
+        if(isTeacher||!payload.eduspherePdf)return;
         if(payload.eduspherePdf==='start'){incomingPdfTransfers.set(payload.id,{name:payload.name,total:payload.total,chunks:new Array(payload.total),received:0});}
         else if(payload.eduspherePdf==='chunk'){const t=incomingPdfTransfers.get(payload.id);if(!t||t.chunks[payload.index])return;t.chunks[payload.index]=pdfBase64ToBytes(payload.data);t.received++;}
         else if(payload.eduspherePdf==='end'){const t=incomingPdfTransfers.get(payload.id);if(!t)return;if(t.received!==t.total){incomingPdfTransfers.delete(payload.id);return pdfStatus('PDF transfer incomplete. Ask teacher to share again.');}const url=URL.createObjectURL(new Blob(t.chunks,{type:'application/pdf'}));incomingPdfTransfers.delete(payload.id);showPdf(url,t.name,1);pdfStatus('PDF received temporarily; not saved to your account.');}
@@ -365,7 +416,13 @@ async function init() {
       room.on(JitsiMeetJS.events.conference.TRACK_REMOVED,track=>{
         const item=remoteTrackNodes.get(track.getId());if(item){track.detach(item.node);item.tile?.remove();item.node.remove();remoteTrackNodes.delete(track.getId());}
       });
-      room.on(JitsiMeetJS.events.conference.CONFERENCE_JOINED,()=>status('Connected · Live classroom. Your camera and microphone are shared with the class.'));
+      room.on(JitsiMeetJS.events.conference.CONFERENCE_JOINED,()=>{
+        status('Connected · Live classroom. Your camera and microphone are shared with the class.');
+        try{for(const p of room.getParticipants?.()||[]){const id=p.getId?.();if(id)participantNames.set(id,p.getDisplayName?.()||'Participant');}}catch{}
+        renderRoster();
+      });
+      room.on(JitsiMeetJS.events.conference.USER_JOINED,(id,user)=>{participantNames.set(id,user?.getDisplayName?.()||'Participant');renderRoster();if(isTeacher)toast((user?.getDisplayName?.()||'A student')+' joined the class.');});
+      room.on(JitsiMeetJS.events.conference.USER_LEFT,(id)=>{const name=participantNames.get(id)||'A participant';participantNames.delete(id);renderRoster();if(isTeacher)toast(name+' left the class.');});
       room.on(JitsiMeetJS.events.conference.CONFERENCE_LEFT,()=>status('You left the live classroom.'));
       try{await Promise.all(localTracks.map(t=>room.addTrack(t)));await room.join();}
       catch(e){status('Could not join the live room: '+(e?.message||e));}
