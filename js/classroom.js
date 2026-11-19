@@ -276,7 +276,7 @@ async function init() {
   });
   $('#pdfPrev').addEventListener('click',async()=>{if(isTeacher && pdfDoc){await renderPdfPage(pdfPage-1);await sendPdfState('pdf-page',{page:pdfPage});}});
   $('#pdfNext').addEventListener('click',async()=>{if(isTeacher && pdfDoc){await renderPdfPage(pdfPage+1);await sendPdfState('pdf-page',{page:pdfPage});}});
-  $('#pdfClose').textContent='Stop PDF • Return to Live Class';
+  $('#pdfClose').textContent='← Back to Camera';
   $('#pdfClose').addEventListener('click',async()=>{if(isTeacher){$('#pdfViewer').classList.remove('active');document.querySelector('.room-shell')?.classList.remove('pdf-active');pdfDoc=null;await sendPdfState('pdf-presentation',{closed:true});}});
   pdfChannel = sb.channel('class-pdf-' + classId);
   pdfChannel.on('broadcast',{event:'pdf-presentation'},({payload})=>{if(!isTeacher){if(payload?.closed){$('#pdfViewer').classList.remove('active');pdfDoc=null;}else if(payload?.url) showPdf(payload.url,payload.name,payload.page);}});
