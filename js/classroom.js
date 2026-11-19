@@ -254,7 +254,7 @@ async function startRecording() {
     micStream = new MediaStream([sourceAudioTrack]);
     video=$('#localPreview');
     recordVideo=video;
-    const cameraIsLive = !!(localVideoTrack?.getTrack?.()?.readyState==='live'
+    const cameraIsLive = () => !!(localVideoTrack?.getTrack?.()?.readyState==='live'
       && localVideoTrack.getTrack()?.enabled!==false
       && !localVideoTrack.isMuted?.()
       && video?.readyState>=2 && video.videoWidth && video.videoHeight);
@@ -272,7 +272,7 @@ async function startRecording() {
           const sx=Math.max(0,(source.width-cropW)/2), sy=Math.min(Math.max(0,wrap.scrollTop*ratioY),Math.max(0,source.height-cropH));
           ctx.drawImage(source,sx,sy,cropW,cropH,0,0,W,H);
         }
-      } else if(cameraIsLive && video.readyState>=2&&video.videoWidth){
+      } else if(cameraIsLive() && video.readyState>=2&&video.videoWidth){
         const scale=Math.max(W/video.videoWidth,H/video.videoHeight),sw=W/scale,sh=H/scale,sx=(video.videoWidth-sw)/2,sy=(video.videoHeight-sh)/2;
         if(cameraFacing==='user'){ctx.save();ctx.translate(W,0);ctx.scale(-1,1);ctx.drawImage(video,sx,sy,sw,sh,0,0,W,H);ctx.restore();}
         else ctx.drawImage(video,sx,sy,sw,sh,0,0,W,H);
