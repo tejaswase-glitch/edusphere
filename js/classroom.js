@@ -54,10 +54,11 @@ async function sendPdfState(event, payload) {
 
 function pdfMode() { return $('#pdfViewer').classList.contains('active') && $('#pdfCanvas').width > 0; }
 async function ensureCamera() {
-  if (!localVideoTrack || localVideoTrack.isEnded()) throw new Error('The shared Jitsi camera track is unavailable. Turn the classroom camera on and retry.');
+  const sourceTrack = localVideoTrack?.getTrack?.();
+  if (!sourceTrack || sourceTrack.readyState !== 'live' || localVideoTrack.isMuted()) throw new Error('The classroom camera is off or unavailable. Turn the classroom camera on and retry.');
   if (!cameraStream || !cameraStream.getVideoTracks().some(t=>t.readyState==='live')) {
-    cameraStream = new MediaStream([localVideoTrack.getTrack().clone()]);
-    streams.push(cameraStream);
+    // Reuse the exact Jitsi camera track. Do not clone or reopen the camera device.
+    cameraStream = new MediaStream([sourceTrack]);
   }
   if (recordVideo) { recordVideo.srcObject=cameraStream; await recordVideo.play(); }
   return cameraStream;
@@ -69,7 +70,9 @@ function stopTracks() {
   recordFrame=0;
   if (modeObserver) modeObserver.disconnect();
   modeObserver=null;
-  streams.forEach(s=>s.getTracks().forEach(t=>t.stop())); streams=[];
+  // These streams wrap Jitsi-owned tracks. Never stop them here: Jitsi must
+  // keep the teacher camera and microphone alive after recording ends.
+  streams=[];
   micStream=null; cameraStream=null;
   if (audioContext) { audioContext.close().catch(()=>{}); audioContext=null; }
 }
@@ -101,7 +104,7 @@ async function startRecording() {
   if (!confirm('Record the teacher microphone and teaching view only (PDF slides or whiteboard camera)? Student audio/video will not be included. Make sure everyone has consented.')) return;
   $('#recordStart').disabled=true; $('#recordStart').textContent='Starting…';
   status('Consent accepted. Checking recording support…');
-  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
     $('#recordStart').disabled=false; $('#recordStart').textContent='● Start Recording';
     status('Recording is not supported in this browser. Open this classroom in the latest Chrome browser.'); return;
   }
@@ -109,8 +112,10 @@ async function startRecording() {
   try {
     status('Preparing the shared Jitsi microphone and camera tracks…');
     if (!localAudioTrack || !localVideoTrack) throw new Error('The shared classroom camera and microphone are not ready. Rejoin the class and allow both permissions.');
-    micStream = new MediaStream([localAudioTrack.getTrack().clone()]);
-    streams.push(micStream);
+    const sourceAudioTrack = localAudioTrack.getTrack();
+    if (!sourceAudioTrack || sourceAudioTrack.readyState !== 'live') throw new Error('The classroom microphone track is unavailable. Rejoin the class and allow microphone access.');
+    // Reuse the teacher's Jitsi microphone track; remote student tracks are never added.
+    micStream = new MediaStream([sourceAudioTrack]);
     if (!pdfMode()) await ensureCamera();
     video=document.createElement('video'); video.muted=true; video.playsInline=true; video.autoplay=true;
     video.setAttribute('aria-label','Teacher camera preview');
@@ -147,8 +152,8 @@ async function startRecording() {
         ctx.fillStyle='#263858';ctx.font='bold 32px system-ui';ctx.textAlign='center';
         ctx.fillText('Waiting for whiteboard camera…',427,240);
       }
-      if(cameraStream) cameraStream.getVideoTracks().forEach(t=>t.enabled=!!localVideoTrack?.getTrack()?.enabled && !pdfMode());
-      if(micStream) micStream.getAudioTracks().forEach(t=>t.enabled=!!localAudioTrack?.getTrack()?.enabled);
+      // Do not toggle source-track enabled state here: that would mute the live
+      // classroom for students while recording a PDF. The canvas alone changes view.
       recordFrame=requestAnimationFrame(paint);
     };
     const canvasStream=recordCanvas.captureStream(8);
@@ -199,7 +204,7 @@ function bindLeaveButton() {
   const button = $('#leaveRoom');
   if (!button || button.dataset.bound === 'yes') return;
   button.dataset.bound = 'yes';
-  button.addEventListener('click', () => {
+  button.addEventListener('click', async () => {
     if (button.dataset.leaving === 'yes') return;
     if (recorder?.state === 'recording' && !confirm('A recording is running. Stop it before leaving?')) return;
     button.dataset.leaving = 'yes';
