@@ -28,10 +28,16 @@ function addChatMessage(name,message,own=false){
  const body=document.createElement('span');body.textContent=message;
  item.append(who,body);box.append(item);box.scrollTop=box.scrollHeight;
 }
-function sendChat(){
- const input=$('#chatInput'),message=(input?.value||'').trim();if(!message||!room)return;
- const payload={edusphereChat:true,name:state.profile?.full_name||state.profile?.role||'Participant',message:message.slice(0,500),sentAt:Date.now()};
- try{room.sendEndpointMessage('',payload);addChatMessage(payload.name,payload.message,true);input.value='';}catch(e){toast('Chat message could not be sent. Check the class connection.');}
+async function sendChat(){
+ const input=$('#chatInput'),message=(input?.value||'').trim();if(!message||!pdfChannel)return;
+ const payload={name:state.profile?.full_name||state.profile?.role||'Participant',message:message.slice(0,500),sentAt:Date.now()};
+ try{const {error}=await pdfChannel.send({type:'broadcast',event:'class-chat',payload});if(error)throw error;addChatMessage(payload.name,payload.message,true);input.value='';}
+ catch(e){toast('Chat message could not be sent. Check the class connection.');}
+}
+async function enableStudentMic(){
+ if(isTeacher||!room||localAudioTrack)return;
+ try{const tracks=await JitsiMeetJS.createLocalTracks({devices:['audio']});localAudioTrack=tracks.find(t=>t.getType()==='audio');if(!localAudioTrack)throw new Error('Microphone unavailable.');await room.addTrack(localAudioTrack);localTracks.push(localAudioTrack);$('#enableMic').textContent='Mute microphone';$('#enableMic').dataset.enabled='yes';status('Your microphone is on. The teacher and class can hear you.');}
+ catch(e){toast('Could not enable microphone: '+(e.message||e));}
 }
 
 const pdfStatus = (s) => { $('#pdfStatus').textContent = s; };
@@ -314,6 +320,7 @@ async function init() {
   const teacher = profile.role === 'admin' || (profile.role === 'teacher' && c.created_by === profile.id);
   isTeacher = teacher;
   if (profile.role === 'student' && !c.is_published) { status('This class is not published for students.'); return; }
+  if(!teacher){$('#recordNote').classList.add('hidden');$('#localPreview')?.closest('.participant-tile')?.classList.add('hidden');$('#toggleCamera')?.classList.add('hidden');$('#switchCamera')?.classList.add('hidden');$('#toggleMic')?.classList.add('hidden');}
   $('#roomTitle').textContent = c.title || 'EduSphere Live Classroom';
   $('#roomUser').textContent = (profile.full_name || profile.role) + ' · ' + profile.role;
   if (teacher) {
@@ -341,11 +348,18 @@ async function init() {
   pdfChannel = sb.channel('class-pdf-' + classId);
   pdfChannel.on('broadcast',{event:'pdf-presentation'},({payload})=>{if(!isTeacher){if(payload?.closed){$('#pdfViewer').classList.remove('active');pdfDoc=null;}else if(payload?.url) showPdf(payload.url,payload.name,payload.page);}});
   pdfChannel.on('broadcast',{event:'pdf-page'},({payload})=>{if(!isTeacher && pdfDoc) renderPdfPage(payload.page);});
+  pdfChannel.on('broadcast',{event:'class-chat'},({payload})=>{if(payload?.message)addChatMessage(payload.name||'Participant',String(payload.message).slice(0,500));});
+  pdfChannel.on('broadcast',{event:'class-ended'},()=>{if(!isTeacher){status('The teacher has ended this class.');try{room?.leave();}catch{}try{connection?.disconnect();}catch{}showClassEnded();}});
   pdfChannel.subscribe();
 
   $('#recordStop').addEventListener('click',stopRecording);
   $('#chatSend')?.addEventListener('click',sendChat);
   $('#chatInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat();}});
+  $('#enableMic')?.addEventListener('click',enableStudentMic);
+  $('#menuToggle')?.addEventListener('click',()=>{const menu=$('#controlMenu');menu?.classList.toggle('open');$('#menuToggle')?.setAttribute('aria-expanded',menu?.classList.contains('open')?'true':'false');});
+  $('#showChat')?.addEventListener('click',()=>$('#chatPanel')?.classList.toggle('hidden'));
+  $('#showRoster')?.addEventListener('click',()=>$('#rosterPanel')?.classList.toggle('hidden'));
+  document.addEventListener('click',e=>{if(!e.target.closest('.menu-wrap')){$('#controlMenu')?.classList.remove('open');$('#menuToggle')?.setAttribute('aria-expanded','false');}});
   $('#endForStudents')?.addEventListener('click',async()=>{
     if(!isTeacher)return;
     if(!confirm('End this class for all students? You will remain in the classroom to finish and save your recording.'))return;
@@ -354,7 +368,7 @@ async function init() {
       const {data:ended,error}=await sb.from('live_classes').update({status:'completed'}).eq('id',classId).eq('status','scheduled').select('id').maybeSingle();
       if(error)throw error;
       if(!ended)throw new Error('The class could not be marked as ended. Refresh and check that you are the class teacher.');
-      room?.sendEndpointMessage('',{edusphereClassAction:'end'});
+      const {error:broadcastError}=await pdfChannel.send({type:'broadcast',event:'class-ended',payload:{ended:true}});if(broadcastError)console.warn('Class-end broadcast warning:',broadcastError);
     }catch(e){$('#endForStudents').disabled=false;$('#endForStudents').textContent='End Class for Students';toast('Could not end the class: '+(e.message||e));return;}
     $('#endForStudents').textContent='Class ended for students';
     status('Class ended for students. You are still in the classroom. Stop & Save your recording, wait for the video-ready message, then Leave Class.');
@@ -369,16 +383,12 @@ async function init() {
     await new Promise((resolve,reject)=>{if(window.JitsiMeetJS)return resolve();const s=document.createElement('script');s.src='https://8x8.vc/libs/lib-jitsi-meet.min.js';s.onload=()=>window.JitsiMeetJS?resolve():reject(new Error('Jitsi low-level SDK did not initialize.'));s.onerror=()=>reject(new Error('Could not load the Jitsi meeting SDK.'));document.head.appendChild(s)});
     JitsiMeetJS.init({disableAudioLevels:true});
     status('Opening the shared classroom camera and microphone… Please allow both permissions.');
-    localTracks=await JitsiMeetJS.createLocalTracks({devices:['audio','video'],constraints:{video:{height:{ideal:720,max:720},width:{ideal:1280,max:1280},frameRate:{ideal:30,max:30}}}});
-    localAudioTrack=localTracks.find(t=>t.getType()==='audio');
-    localVideoTrack=localTracks.find(t=>t.getType()==='video');
-    if(!localAudioTrack || !localVideoTrack) throw new Error('Could not create both classroom camera and microphone tracks.');
-    const preview=$('#localPreview');
-    await localVideoTrack.attach(preview);
-    // Jitsi may apply selfie mirroring inline; force the actual classroom preview to normal orientation.
-    preview.style.setProperty('transform','none','important');
-    preview.style.setProperty('-webkit-transform','none','important');
-    preview.style.setProperty('object-fit','cover','important');
+    if(isTeacher){
+      localTracks=await JitsiMeetJS.createLocalTracks({devices:['audio','video'],constraints:{video:{height:{ideal:720,max:720},width:{ideal:1280,max:1280},frameRate:{ideal:30,max:30}}}});
+      localAudioTrack=localTracks.find(t=>t.getType()==='audio');localVideoTrack=localTracks.find(t=>t.getType()==='video');
+      if(!localAudioTrack||!localVideoTrack)throw new Error('Could not create both classroom camera and microphone tracks.');
+      const preview=$('#localPreview');await localVideoTrack.attach(preview);preview.style.setProperty('transform','none','important');preview.style.setProperty('-webkit-transform','none','important');preview.style.setProperty('object-fit','cover','important');
+    }else{localTracks=[];localAudioTrack=null;localVideoTrack=null;$('#enableMic')?.classList.remove('hidden');}
     const roomOnly=ticket.roomName.slice(ticket.roomName.indexOf('/')+1);
     const options={
       hosts:{domain:'8x8.vc',muc:'conference.'+ticket.appId+'.8x8.vc',focus:'focus.8x8.vc'},
