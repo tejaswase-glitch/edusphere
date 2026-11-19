@@ -249,9 +249,32 @@ async function startRecording() {
   let video=null;
   try {
     status('Preparing the shared Jitsi microphone and camera tracks…');
-    if (!localAudioTrack) throw new Error('The classroom microphone is not ready. Rejoin the class and allow microphone permission.');
+    // Recover the teacher microphone if the classroom joined before its
+    // Jitsi audio track became available (common after Android permission prompts).
+    if (!localAudioTrack || !localAudioTrack.getTrack?.() || localAudioTrack.getTrack()?.readyState !== 'live') {
+      if (!room || !window.JitsiMeetJS) throw new Error('The classroom is not connected yet. Wait for Connected status and retry.');
+      status('Requesting microphone access for the classroom recording…');
+      const recoveredTracks = await JitsiMeetJS.createLocalTracks({devices:['audio']});
+      const recoveredAudio = recoveredTracks.find(t => t.getType() === 'audio');
+      if (!recoveredAudio || !recoveredAudio.getTrack?.() || recoveredAudio.getTrack()?.readyState !== 'live') {
+        recoveredTracks.forEach(t => { try { t.dispose(); } catch {} });
+        throw new Error('Chrome did not provide a live microphone. Allow microphone access for this website in Chrome site settings, then retry.');
+      }
+      try {
+        await room.addTrack(recoveredAudio);
+        localAudioTrack = recoveredAudio;
+        localTracks.push(recoveredAudio);
+        $('#toggleMic').textContent = 'Mute Mic';
+      } catch (e) {
+        try { recoveredAudio.dispose(); } catch {}
+        throw new Error('The microphone opened but could not connect to the class: ' + (e?.message || e));
+      }
+    }
     const sourceAudioTrack = localAudioTrack.getTrack();
-    if (!sourceAudioTrack || sourceAudioTrack.readyState !== 'live') throw new Error('The classroom microphone track is unavailable. Rejoin the class and allow microphone access.');
+    if (!sourceAudioTrack || sourceAudioTrack.readyState !== 'live') throw new Error('Chrome microphone is not live. Check this website’s microphone permission and retry.');
+    if (localAudioTrack.isMuted?.()) {
+      try { await localAudioTrack.unmute(); $('#toggleMic').textContent = 'Mute Mic'; } catch {}
+    }
     // Record only the teacher microphone. Camera is optional: when it is off,
     // the recording shows the teacher placeholder; PDF mode records the slides.
     micStream = new MediaStream([sourceAudioTrack]);
