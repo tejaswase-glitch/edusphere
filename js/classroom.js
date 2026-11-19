@@ -265,6 +265,7 @@ async function startRecording() {
     });
     modeObserver.observe($('#pdfViewer'),{attributes:true,attributeFilter:['class']});
     $('#recordStart').disabled=true; $('#recordStart').textContent='● Recording'; $('#recordStop').disabled=false; $('#recordStop').classList.remove('hidden');
+    $('#recordStop').classList.remove('hidden');
     $('#switchCamera')?.classList.add('hidden');
     status(pdfMode()?'RECORDING: PDF slides + teacher microphone. Close the PDF to switch to the whiteboard camera.':'RECORDING: whiteboard camera + teacher microphone. Open a PDF to switch to slide recording.');
   } catch(e) {
@@ -339,6 +340,7 @@ async function init() {
     $('#recordNote').classList.add('hidden');
   } else $('#recordNote').classList.add('hidden');
   $('#recordStart').addEventListener('click',startRecording);
+  $('#recordStop').addEventListener('click',stopRecording);
   $('#pdfFile').addEventListener('change',async e=>{
     const file=e.target.files&&e.target.files[0];if(!file)return;
     if(file.type!=='application/pdf'&&!file.name.toLowerCase().endsWith('.pdf')){pdfStatus('Please choose a PDF file.');return;}
@@ -349,6 +351,7 @@ async function init() {
   $('#pdfSave').addEventListener('click',savePendingPdf);
   $('#pdfPrev').addEventListener('click',async()=>{if(pdfDoc){await renderPdfPage(pdfPage-1);if(isTeacher)await sendPdfState('pdf-page',{page:pdfPage});}});
   $('#pdfNext').addEventListener('click',async()=>{if(pdfDoc){await renderPdfPage(pdfPage+1);if(isTeacher)await sendPdfState('pdf-page',{page:pdfPage});}});
+  $('#pdfViewer').addEventListener('click',e=>e.stopPropagation());
   $('#pdfClose').textContent='← Back to Camera';$('#pdfSave').classList.add('hidden');$('#pdfSave').disabled=false;$('#pdfSave').textContent='Save to EduSphere';
   $('#pdfClose').addEventListener('click',async()=>{
     $('#pdfViewer').classList.remove('active');document.querySelector('.room-shell')?.classList.remove('pdf-active');pdfDoc=null;
@@ -374,9 +377,13 @@ async function init() {
   $('#chatInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat();}});
   $('#enableMic')?.addEventListener('click',enableStudentMic);
   $('#menuToggle')?.addEventListener('click',()=>{const menu=$('#controlMenu');menu?.classList.toggle('open');$('#menuToggle')?.setAttribute('aria-expanded',menu?.classList.contains('open')?'true':'false');});
-  $('#showChat')?.addEventListener('click',()=>$('#chatPanel')?.classList.toggle('hidden'));
-  $('#showRoster')?.addEventListener('click',()=>$('#rosterPanel')?.classList.toggle('hidden'));
-  document.addEventListener('click',e=>{if(!e.target.closest('.menu-wrap')){$('#controlMenu')?.classList.remove('open');$('#menuToggle')?.setAttribute('aria-expanded','false');}});
+  $('#showChat')?.addEventListener('click',()=>{const p=$('#chatPanel');const opening=p?.classList.contains('hidden');$('#rosterPanel')?.classList.add('hidden');p?.classList.toggle('hidden');if(opening)setTimeout(()=>$('#chatInput')?.focus(),80);});
+  $('#showRoster')?.addEventListener('click',()=>{const p=$('#rosterPanel');const opening=p?.classList.contains('hidden');$('#chatPanel')?.classList.add('hidden');p?.classList.toggle('hidden');});
+  document.addEventListener('click',e=>{
+    if(!e.target.closest('.menu-wrap')){$('#controlMenu')?.classList.remove('open');$('#menuToggle')?.setAttribute('aria-expanded','false');}
+    const action=e.target.closest('#controlMenu button');
+    if(action && action.id!=='menuToggle') { $('#controlMenu')?.classList.remove('open');$('#menuToggle')?.setAttribute('aria-expanded','false'); }
+  });
   $('#endForStudents')?.addEventListener('click',async()=>{
     if(!isTeacher)return;
     if(!confirm('End this class for all students? You will remain in the classroom to finish and save your recording.'))return;
@@ -477,16 +484,19 @@ async function init() {
       try{
         button.disabled=true;button.textContent='Switching…';
         const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
-        if(devices.length<2){status('Only one camera is available on this device.');return;}
-        const currentId=localVideoTrack?.getDeviceId?.() || localVideoTrack?.getTrack?.().getSettings?.().deviceId;
-        const currentIndex=Math.max(0,devices.findIndex(d=>d.deviceId===currentId));
-        const next=devices[(currentIndex+1)%devices.length];
-        const created=await JitsiMeetJS.createLocalTracks({devices:['video'],cameraDeviceId:next.deviceId,constraints:{video:{height:{ideal:720,max:720},width:{ideal:1280,max:1280},frameRate:{ideal:30,max:30}}}});
+        if(!devices.length)throw new Error('No camera was found. Check browser camera permission.');
+        const currentId=localVideoTrack?.getTrack?.().getSettings?.().deviceId || localVideoTrack?.getDeviceId?.();
+        const currentIndex=devices.findIndex(d=>d.deviceId===currentId);
+        const next=devices.length>1?devices[(currentIndex<0?0:currentIndex)+1>=devices.length?0:(currentIndex<0?1:currentIndex+1)]:null;
+        const target=next||devices[0];
+        const facing=(localVideoTrack?.getTrack?.().getSettings?.().facingMode==='user')?'environment':'user';
+        const created=await JitsiMeetJS.createLocalTracks({devices:['video'],cameraDeviceId:target.deviceId,constraints:{video:{deviceId:{exact:target.deviceId},facingMode:{ideal:facing},height:{ideal:720,max:720},width:{ideal:1280,max:1280},frameRate:{ideal:30,max:30}}}});
         const replacement=created.find(t=>t.getType()==='video');
         if(!replacement)throw new Error('Could not open the selected camera.');
         const previous=localVideoTrack;
         await room.replaceTrack(previous,replacement);
         try{previous.detach($('#localPreview'));}catch{}
+        try{await previous.dispose();}catch{}
         localVideoTrack=replacement;
         await replacement.attach($('#localPreview'));
         $('#localPreview').style.setProperty('transform','none','important');
