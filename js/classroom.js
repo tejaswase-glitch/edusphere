@@ -309,7 +309,8 @@ async function init() {
   if (profileError || !profile || profile.status !== 'approved') { status('Your EduSphere account is not approved.'); return; }
   state.profile = profile;
   const {data:c,error} = await sb.from('live_classes').select('id,title,subject,course_id,provider,status,created_by,is_published').eq('id',classId).maybeSingle();
-  if (error || !c || c.provider !== 'jitsi' || c.status !== 'scheduled') { status('This class is unavailable.'); return; }
+  if (error || !c || c.provider !== 'jitsi') { status('This class is unavailable.'); return; }
+  if (c.status !== 'scheduled') { if (c.status === 'completed' || c.status === 'ended') { status('This class has ended.'); showClassEnded(); } else status('This class is unavailable.'); return; }
   const teacher = profile.role === 'admin' || (profile.role === 'teacher' && c.created_by === profile.id);
   isTeacher = teacher;
   if (profile.role === 'student' && !c.is_published) { status('This class is not published for students.'); return; }
@@ -345,13 +346,19 @@ async function init() {
   $('#recordStop').addEventListener('click',stopRecording);
   $('#chatSend')?.addEventListener('click',sendChat);
   $('#chatInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat();}});
-  $('#endForStudents')?.addEventListener('click',()=>{
+  $('#endForStudents')?.addEventListener('click',async()=>{
     if(!isTeacher)return;
     if(!confirm('End this class for all students? You will remain in the classroom to finish and save your recording.'))return;
-    try{room?.sendEndpointMessage('',{edusphereClassAction:'end'});}catch(e){toast('Could not notify students. Check the class connection.');return;}
-    $('#endForStudents').disabled=true;$('#endForStudents').textContent='Class ended for students';
+    $('#endForStudents').disabled=true;$('#endForStudents').textContent='Ending…';
+    try{
+      const {data:ended,error}=await sb.from('live_classes').update({status:'completed'}).eq('id',classId).eq('status','scheduled').select('id').maybeSingle();
+      if(error)throw error;
+      if(!ended)throw new Error('The class could not be marked as ended. Refresh and check that you are the class teacher.');
+      room?.sendEndpointMessage('',{edusphereClassAction:'end'});
+    }catch(e){$('#endForStudents').disabled=false;$('#endForStudents').textContent='End Class for Students';toast('Could not end the class: '+(e.message||e));return;}
+    $('#endForStudents').textContent='Class ended for students';
     status('Class ended for students. You are still in the classroom. Stop & Save your recording, wait for the video-ready message, then Leave Class.');
-    toast('Students have been dismissed. You can finish saving your recording now.');
+    toast('Students have been dismissed. New students cannot join this ended class. Finish saving your recording before leaving.');
   });
   
 
