@@ -168,8 +168,11 @@ function finishRecording() {
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = URL.createObjectURL(blob);
   const panel = $('#roomToast');
+  // Move the save panel out of the flex classroom shell so it is centered
+  // against the actual phone viewport and cannot be clipped by the video stage.
+  if (panel.parentElement !== document.body) document.body.appendChild(panel);
   panel.classList.add('show');
-  panel.style.cssText = 'display:block;position:fixed;z-index:2147483000;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom, 0px));width:auto;max-height:45vh;overflow:auto;padding:16px;background:#172447;color:#fff;border:2px solid #8bd5a8;border-radius:14px;box-shadow:0 8px 30px #0009;text-align:center;font-size:15px;line-height:1.5;pointer-events:auto';
+  panel.style.cssText = 'display:block!important;position:fixed!important;z-index:2147483000!important;left:50%!important;right:auto!important;top:auto!important;bottom:calc(12px + env(safe-area-inset-bottom, 0px))!important;transform:translateX(-50%)!important;width:min(520px,calc(100vw - 24px))!important;max-width:calc(100vw - 24px)!important;max-height:45vh;overflow:auto;padding:16px;background:#172447;color:#fff;border:2px solid #8bd5a8;border-radius:14px;box-shadow:0 8px 30px #0009;text-align:center;font-size:15px;line-height:1.5;pointer-events:auto';
   const message = document.createElement('div');
   message.textContent = 'Recording ready (' + (blob.size/1024/1024).toFixed(2) + ' MB). Tap the large button below to download and save it to your phone.';
   const downloadButton = document.createElement('button');
