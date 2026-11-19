@@ -110,6 +110,7 @@ async function init() {
   $('#roomTitle').textContent = c.title || 'EduSphere Live Classroom';
   $('#roomUser').textContent = (profile.full_name || profile.role) + ' · ' + profile.role;
   if (teacher) {
+    $('#pdfUploadLabel').classList.remove('hidden');
     $('#recordStart').classList.remove('hidden');
     $('#recordNote').textContent = 'Teacher recording: this page is a separate classroom window, so the EduSphere dashboard is not part of the class capture. On Android, use the built-in Screen Recorder and keep this page in front. Recording may include participant audio/video; obtain consent before recording.';
   } else $('#recordNote').classList.add('hidden');
