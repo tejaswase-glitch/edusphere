@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
       aud: 'jitsi',
       iss: 'chat',
       sub: appId,
-      room: roomName,
+      room,
       context: {
         user: {
           id: profile.id,
