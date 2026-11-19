@@ -30,7 +30,8 @@ const sidebar = () => $('#sidebar');
 export function mountPortal() {
   const p = state.profile;
   document.body.dataset.view = 'app';
-  $('#site').hidden = true; $('#app').hidden = false;
+  $('#site').hidden = true; $('#site').style.display = 'none';
+  $('#app').hidden = false; $('#app').style.display = 'block';
   $('#avatar').textContent = initials(p.full_name);
   $('#whoName').textContent = ' ' + (p.full_name || p.role);
   $('#sideNav').innerHTML = NAV[p.role].map(([id, label, ic]) => `<button type="button" data-nav="${id}">${svg(ic, 22)}<span>${esc(label)}</span></button>`).join('');
@@ -43,7 +44,9 @@ export function unmountPortal() {
   closeModal(); $('#confirmDlg').open && $('#confirmDlg').close();
   closeSidebar();
   $('#view').innerHTML = ''; $('#sideNav').innerHTML = ''; $('#whoName').textContent = ''; $('#avatar').textContent = '';
-  document.body.dataset.view = 'site'; $('#app').hidden = true;
+  document.body.dataset.view = 'site';
+  $('#app').hidden = true; $('#app').style.display = 'none';
+  $('#site').hidden = false; $('#site').style.display = '';
   window.scrollTo(0, 0);
 }
 
