@@ -166,7 +166,7 @@ export async function adminsView(el) {
     const btn = e.submitter; btn.disabled = true;
     try {
       const r = await adminFn({ action:'create_admin', full_name:f.full_name.trim(), email:f.email.trim(), redirectTo:location.origin + location.pathname });
-      toast(r.note || 'Administrator created.','good'); e.currentTarget.reset(); await load();
+      toast(r.note || 'Administrator created.', r.emailSent === false ? 'bad' : 'good'); e.currentTarget.reset(); await load();
     } catch (err) { fail(err); } finally { btn.disabled = false; }
   });
   await load();
