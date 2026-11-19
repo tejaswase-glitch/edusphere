@@ -9,6 +9,7 @@
     <application
         android:allowBackup="false"
         android:label="EduSphere"
+        android:icon="@drawable/ic_launcher"
         android:usesCleartextTraffic="false"
         android:theme="@style/AppTheme">
         <activity
