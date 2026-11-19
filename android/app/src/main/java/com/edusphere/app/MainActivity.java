@@ -2,13 +2,25 @@ package com.edusphere.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
 import android.webkit.PermissionRequest;
@@ -29,11 +41,21 @@ public class MainActivity extends Activity {
     private WebView webView;
     private PermissionRequest pendingWebPermission;
     private ValueCallback<Uri[]> fileCallback;
+    private FrameLayout rootLayout;
+    private View splashView;
+    private boolean splashFinished = false;
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        rootLayout = new FrameLayout(this);
         webView = new WebView(this);
-        setContentView(webView);
+        rootLayout.addView(webView, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        splashView = createSplashView();
+        rootLayout.addView(splashView, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        setContentView(rootLayout);
+
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -49,7 +71,7 @@ public class MainActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 String host = uri.getHost();
-                if (host != null && (host.equals("tejaswase-glitch.github.io") || host.endsWith(".jitsi.net") || host.equals("meet.jit.si"))) return false;
+                if (host != null && (host.equals("tejaswase-glitch.github.io") || host.endsWith(".jitsi.net") || host.equals("meet.jit.si") || host.equals("8x8.vc"))) return false;
                 if ("https".equals(uri.getScheme())) {
                     try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); }
                     catch (Exception ignored) { }
@@ -98,8 +120,65 @@ public class MainActivity extends Activity {
                 Toast.makeText(this, "Unable to download this file", Toast.LENGTH_LONG).show();
             }
         });
+
         if (savedInstanceState == null) webView.loadUrl("https://tejaswase-glitch.github.io/edusphere/");
         else webView.restoreState(savedInstanceState);
+
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (splashView != null && !isFinishing()) {
+                rootLayout.removeView(splashView);
+                splashView = null;
+                splashFinished = true;
+            }
+        }, 2000);
+    }
+
+    private View createSplashView() {
+        FrameLayout splash = new FrameLayout(this);
+        splash.setBackgroundColor(Color.rgb(243, 240, 255));
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams contentParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
+        content.setPadding(24, 24, 24, 24);
+
+        TextView logo = new TextView(this);
+        logo.setText("🎓");
+        logo.setTextSize(48);
+        logo.setGravity(Gravity.CENTER);
+        GradientDrawable logoBg = new GradientDrawable();
+        logoBg.setColor(Color.rgb(91, 75, 255));
+        logoBg.setCornerRadius(dp(24));
+        logo.setBackground(logoBg);
+        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(dp(104), dp(104));
+        logoParams.bottomMargin = dp(20);
+        content.addView(logo, logoParams);
+
+        TextView name = new TextView(this);
+        name.setText("EduSphere");
+        name.setTextColor(Color.rgb(24, 31, 74));
+        name.setTextSize(30);
+        name.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        name.setGravity(Gravity.CENTER);
+        content.addView(name);
+
+        TextView tagline = new TextView(this);
+        tagline.setText("Learn. Grow. Achieve.");
+        tagline.setTextColor(Color.rgb(79, 75, 130));
+        tagline.setTextSize(15);
+        tagline.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams taglineParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        taglineParams.topMargin = dp(8);
+        content.addView(tagline, taglineParams);
+
+        splash.addView(content, contentParams);
+        return splash;
+    }
+
+    private int dp(int value) {
+        return (int)(value * getResources().getDisplayMetrics().density + 0.5f);
     }
 
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
@@ -128,7 +207,12 @@ public class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
+        new AlertDialog.Builder(this)
+            .setTitle("Exit EduSphere?")
+            .setMessage("Do you want to exit EduSphere?")
+            .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
+            .setPositiveButton("Exit", (dialog, which) -> finish())
+            .setCancelable(true)
+            .show();
     }
 }
