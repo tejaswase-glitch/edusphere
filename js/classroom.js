@@ -8,6 +8,7 @@ let api = null, connection = null, room = null, recorder = null, streams = [], c
 let localTracks = [], localAudioTrack = null, localVideoTrack = null, remoteTrackNodes = new Map();
 let micStream = null, cameraStream = null, recordCanvas = null, recordFrame = 0, modeObserver = null, recordVideo = null, cameraFacing = 'environment';
 let pdfDoc = null, pdfPage = 1, pdfChannel = null, pdfJs = null, isTeacher = false, currentPdfUrl = null, pendingPdfFile = null;
+const incomingPdfTransfers = new Map();
 const pdfStatus = (s) => { $('#pdfStatus').textContent = s; };
 async function loadPdfJs() {
   if (pdfJs) return pdfJs;
