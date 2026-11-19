@@ -56,16 +56,18 @@ function pdfMode() { return $('#pdfViewer').classList.contains('active') && $('#
 async function ensureCamera() {
   const sourceTrack = localVideoTrack?.getTrack?.();
   if (!sourceTrack || sourceTrack.readyState !== 'live' || localVideoTrack.isMuted()) throw new Error('The classroom camera is off or unavailable. Turn the classroom camera on and retry.');
+  // Keep a MediaStream wrapper for track validation only. Do not attach the
+  // Jitsi-owned camera track to a second video element: Android Chrome can
+  // reject that second video source with "Could not start video source".
   if (!cameraStream || !cameraStream.getVideoTracks().some(t=>t.readyState==='live')) {
-    // Reuse the exact Jitsi camera track. Do not clone or reopen the camera device.
     cameraStream = new MediaStream([sourceTrack]);
   }
-  if (recordVideo) { recordVideo.srcObject=cameraStream; await recordVideo.play(); }
   return cameraStream;
 }
 
 function stopTracks() {
-  if (recordVideo) { recordVideo.remove(); recordVideo=null; }
+  // localPreview belongs to the live Jitsi classroom; never remove it.
+  recordVideo=null;
   if (recordFrame) cancelAnimationFrame(recordFrame);
   recordFrame=0;
   if (modeObserver) modeObserver.disconnect();
@@ -118,23 +120,19 @@ async function startRecording() {
     // Reuse the teacher's Jitsi microphone track; remote student tracks are never added.
     micStream = new MediaStream([sourceAudioTrack]);
     if (!pdfMode()) await ensureCamera();
-    video=document.createElement('video'); video.muted=true; video.playsInline=true; video.autoplay=true;
-    video.setAttribute('aria-label','Teacher camera preview');
-    video.style.cssText='position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:0';
-    document.body.appendChild(video);
+    // Draw from the existing Jitsi preview element. Android Chrome may fail
+    // when the same camera track is attached to a second video element.
+    video=$('#localPreview');
     recordVideo=video;
-    if(cameraStream){
-      video.srcObject=cameraStream;
-      await video.play();
+    if(!pdfMode()){
       if(video.readyState<2) await new Promise((resolve,reject)=>{
-        const timer=setTimeout(()=>reject(new Error('Shared Jitsi camera opened but no video frames arrived. Check that your classroom camera is on.')),6000);
+        const timer=setTimeout(()=>reject(new Error('The live classroom preview has not produced video frames. Check that your camera is on.')),6000);
         const ready=()=>{clearTimeout(timer);resolve();};
-        const failed=()=>{clearTimeout(timer);reject(new Error('Camera video could not be read by the recorder.'));};
         video.addEventListener('loadeddata',ready,{once:true});
-        video.addEventListener('error',failed,{once:true});
+        video.addEventListener('playing',ready,{once:true});
         if(video.readyState>=2) ready();
       });
-      if(!video.videoWidth||!video.videoHeight) throw new Error('The shared Jitsi camera has no video frames. Check the camera control and retry.');
+      if(!video.videoWidth||!video.videoHeight) throw new Error('The live classroom camera preview has no video frames. Turn your camera on and retry.');
     }
     recordCanvas=document.createElement('canvas'); recordCanvas.width=854; recordCanvas.height=480;
     const ctx=recordCanvas.getContext('2d');
@@ -178,7 +176,7 @@ async function startRecording() {
         recorder=new MediaRecorder(output,options);
         recorder.ondataavailable=e=>{if(e.data && e.data.size)chunks.push(e.data);};
         recorder.onerror=e=>{status('Recorder error: ' + (e?.error?.message || 'The browser could not encode this video.'));};
-        recorder.onstop=()=>{video?.remove();finishRecording();};
+        recorder.onstop=()=>{finishRecording();};
         recorder.start(1000);
         startError=null;
         break;
@@ -188,7 +186,7 @@ async function startRecording() {
     paint();
     modeObserver=new MutationObserver(async()=>{
       if(!pdfMode()&&!cameraStream&&recorder?.state==='recording'){
-        try { const s=await ensureCamera(); video.srcObject=s; await video.play().catch(()=>{}); }
+        try { await ensureCamera(); }
         catch(e){toast('Camera access was not allowed. PDF recording can continue, but whiteboard mode needs camera permission.');}
       }
     });
@@ -197,7 +195,7 @@ async function startRecording() {
     $('#switchCamera')?.classList.add('hidden');
     status(pdfMode()?'RECORDING: PDF slides + teacher microphone. Close the PDF to switch to the whiteboard camera.':'RECORDING: whiteboard camera + teacher microphone. Open a PDF to switch to slide recording.');
   } catch(e) {
-    video?.remove(); recordVideo=null; stopTracks();
+    recordVideo=null; stopTracks();
     const reason=e?.message || String(e);
     status('Recording did not start: ' + reason);
     toast('Recording did not start: ' + reason);
