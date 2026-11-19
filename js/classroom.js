@@ -175,7 +175,8 @@ function finishRecording() {
   a.style.cssText = 'display:block;width:max-content;max-width:100%;margin:12px auto;padding:14px 18px;border-radius:10px;background:#e8f4ed;color:#174c31;font-size:16px;font-weight:800;text-decoration:none;text-align:center';
   const panel = $('#roomToast');
   panel.classList.add('show');
-  panel.replaceChildren(document.createTextNode('Recording ready (' + (blob.size/1024/1024).toFixed(2) + ' MB). Tap the button below to download and save it to your phone.'), a);
+  panel.style.cssText = 'display:block;position:fixed;z-index:10000;left:12px;right:12px;bottom:16px;max-height:45vh;overflow:auto;padding:16px;background:#172447;color:#fff;border:2px solid #8bd5a8;border-radius:14px;box-shadow:0 8px 30px #0009;text-align:center;font-size:15px;line-height:1.5';
+  panel.replaceChildren(document.createTextNode('Recording ready (' + (blob.size/1024/1024).toFixed(2) + ' MB). Tap below to download and save it to your phone.'), a);
   status('Recording is ready. Tap Download Lecture Video to save it to your phone.');
 }
 async function startRecording() {
@@ -284,34 +285,24 @@ async function startRecording() {
   }
 }
 function stopRecording() {
-  if (!recorder || recorder.state === 'inactive') {
-    status('No active recording was found. Start a new recording first.');
+  const activeRecorder = recorder;
+  if (!activeRecorder || activeRecorder.state === 'inactive') {
     toast('No active recording was found. Start recording before using Stop & Save.');
     return;
   }
-  const activeRecorder = recorder;
-  recordingFinalized = false;
   $('#recordStop').disabled = true;
   $('#recordStop').textContent = 'Saving…';
-  status('Saving your recording… Keep this classroom open until the download button appears.');
+  const panel = $('#roomToast');
+  panel.style.cssText = 'display:block;position:fixed;z-index:10000;left:12px;right:12px;bottom:16px;padding:14px;background:#172447;color:#fff;border:2px solid #f3c34e;border-radius:14px;text-align:center;font-size:15px';
+  panel.textContent = 'Stopping recording and preparing your video… Please keep this classroom open.';
   try {
-    activeRecorder.addEventListener('stop', finishRecording, {once:true});
-    activeRecorder.addEventListener('error', (event) => {
-      $('#recordStop').disabled = false;
-      $('#recordStop').textContent = 'Stop & Save';
-      status('Recording could not be finalized: ' + (event?.error?.message || 'browser recording error'));
-      toast('Recording could not be finalized. Please try again.');
-    }, {once:true});
-    if (activeRecorder.state === 'recording') activeRecorder.requestData();
-    if (activeRecorder.state !== 'inactive') activeRecorder.stop();
+    if (activeRecorder.state === 'recording') activeRecorder.stop();
   } catch(e) {
     $('#recordStop').disabled = false;
     $('#recordStop').textContent = 'Stop & Save';
-    status('Could not stop recording: ' + (e?.message || String(e)));
     toast('Could not stop recording: ' + (e?.message || String(e)));
   }
 }
-
 function bindLeaveButton() {
   const button = $('#leaveRoom');
   if (!button || button.dataset.bound === 'yes') return;
@@ -392,7 +383,6 @@ async function init() {
     setTimeout(()=>resolve(pdfChannelReady),8000);
   });
 
-  $('#recordStop').addEventListener('click',stopRecording);
   $('#chatSend')?.addEventListener('click',sendChat);
   $('#chatInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat();}});
   $('#enableMic')?.addEventListener('click',enableStudentMic);
