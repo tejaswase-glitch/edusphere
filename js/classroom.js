@@ -246,7 +246,8 @@ async function startRecording() {
   let video=null;
   try {
     status('Preparing the shared Jitsi microphone and camera tracks…');
-    if (!localAudioTrack || !localVideoTrack) throw new Error('The shared classroom camera and microphone are not ready. Rejoin the class and allow both permissions.');
+    if (!localAudioTrack) throw new Error('The classroom microphone is not ready. Rejoin the class and allow microphone permission.');
+    if (!pdfMode() && !localVideoTrack) throw new Error('Turn on your classroom camera first, wait until your picture appears, then start recording.');
     const sourceAudioTrack = localAudioTrack.getTrack();
     if (!sourceAudioTrack || sourceAudioTrack.readyState !== 'live') throw new Error('The classroom microphone track is unavailable. Rejoin the class and allow microphone access.');
     // Reuse the teacher's Jitsi microphone track; remote student tracks are never added.
@@ -554,65 +555,96 @@ async function init() {
     });
     $('#switchCamera').addEventListener('click',async()=>{
       const button=$('#switchCamera');
+      const currentFacing=localVideoTrack?.getTrack?.()?.getSettings?.()?.facingMode || cameraFacing || 'environment';
+      const targetFacing=currentFacing==='user'?'environment':'user';
+      let replacement=null;
       try{
         button.disabled=true;button.textContent='Switching…';
-        const currentFacing=localVideoTrack?.getTrack?.().getSettings?.().facingMode||cameraFacing;
-        const targetFacing=currentFacing==='user'?'environment':'user';
         cameraFacing=targetFacing;
-        if(!localVideoTrack){
-          status('Camera preference set to '+(targetFacing==='user'?'front':'back')+'. Turn the camera on when ready.');
+        // If the camera is off, remember the preferred lens. It will be used
+        // when the teacher next turns the camera on; do not open it secretly.
+        if(!localVideoTrack || localVideoTrack.getTrack?.()?.readyState!=='live'){
+          status('The '+(targetFacing==='user'?'front':'back')+' camera is selected. Turn the camera on when ready.');
           return;
         }
         const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
-        const targetDevice=devices.find(d=>targetFacing==='user'?/front|user|facetime/i.test(d.label):/back|rear|environment/i.test(d.label));
-        const created=await JitsiMeetJS.createLocalTracks({devices:['video'],...(targetDevice?.deviceId?{cameraDeviceId:targetDevice.deviceId}:{}),constraints:{video:{...(targetDevice?.deviceId?{deviceId:{exact:targetDevice.deviceId}}:{facingMode:{ideal:targetFacing}}),height:{ideal:720,max:720},width:{ideal:1280,max:1280},frameRate:{ideal:30,max:30}}}});
-        const replacement=created.find(t=>t.getType()==='video');
-        if(!replacement)throw new Error('Could not open the '+(targetFacing==='user'?'front':'back')+' camera.');
+        const pattern=targetFacing==='user'?/(front|user|facetime)/i:/(back|rear|environment)/i;
+        const targetDevice=devices.find(d=>d.label && pattern.test(d.label));
+        const constraints={video:{
+          ...(targetDevice?.deviceId?{deviceId:{exact:targetDevice.deviceId}}:{facingMode:{exact:targetFacing}}),
+          width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}
+        }};
+        const created=await JitsiMeetJS.createLocalTracks({
+          devices:['video'],
+          ...(targetDevice?.deviceId?{cameraDeviceId:targetDevice.deviceId}:{}),
+          constraints
+        });
+        replacement=created.find(t=>t.getType()==='video');
+        if(!replacement)throw new Error('The '+(targetFacing==='user'?'front':'back')+' camera could not be opened.');
         const previous=localVideoTrack;
         await room.replaceTrack(previous,replacement);
         try{previous.detach($('#localPreview'));}catch{}
-        try{await previous.dispose();}catch{}
         localVideoTrack=replacement;
+        if(!localTracks.includes(replacement))localTracks.push(replacement);
+        localTracks=localTracks.filter(t=>t!==previous);
+        try{await previous.dispose();}catch{}
         await replacement.attach($('#localPreview'));
-        applyCameraOrientation(replacement);
-        $('#localPreview').style.setProperty('object-fit','cover','important');
         $('#localPreview').classList.remove('camera-off');
-        localTracks=localTracks.filter(t=>t!==previous);localTracks.push(replacement);
+        $('#localPreview').style.setProperty('object-fit','cover','important');
+        applyCameraOrientation(replacement);
         cameraStream=null;
         $('#toggleCamera').textContent='Turn Camera Off';
-        status('Switched to the '+targetFacing+' camera.');
-      }catch(e){cameraFacing=currentFacing;status('Could not switch camera: '+(e?.message||e));toast('Could not switch camera: '+(e?.message||e));}
-      finally{button.disabled=false;button.textContent='Front / Back';}
+        status('Switched to the '+(targetFacing==='user'?'front':'back')+' camera.');
+      }catch(e){
+        cameraFacing=currentFacing;
+        if(replacement && replacement!==localVideoTrack){try{await replacement.dispose();}catch{}}
+        status('Could not switch camera: '+(e?.message||e));
+        toast('Could not switch camera: '+(e?.message||e));
+      }finally{
+        button.disabled=false;button.textContent='Front / Back';
+      }
     });
     $('#toggleCamera').addEventListener('click',async()=>{
       const button=$('#toggleCamera');
       try{
         button.disabled=true;
-        if(!localVideoTrack){
-          const created=await JitsiMeetJS.createLocalTracks({devices:['video'],constraints:{video:{facingMode:{ideal:cameraFacing==='user'?'user':'environment'},height:{ideal:720,max:720},width:{ideal:1280,max:1280},frameRate:{ideal:30,max:30}}}});
+        if(!localVideoTrack || localVideoTrack.getTrack?.()?.readyState!=='live'){
+          const created=await JitsiMeetJS.createLocalTracks({devices:['video'],constraints:{video:{
+            facingMode:{ideal:cameraFacing==='user'?'user':'environment'},
+            width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}
+          }}});
           const track=created.find(t=>t.getType()==='video');
           if(!track)throw new Error('Could not open the classroom camera. Check camera permission.');
+          try{await room.addTrack(track);}catch(e){try{await track.dispose();}catch{}throw e;}
           localVideoTrack=track;
-          await room.addTrack(track);
-          localTracks.push(track);
+          if(!localTracks.includes(track))localTracks.push(track);
           await track.attach($('#localPreview'));
           $('#localPreview').classList.remove('camera-off');
           $('#localPreview').style.setProperty('object-fit','cover','important');
           applyCameraOrientation(track);
           cameraStream=null;
-        }else if(localVideoTrack.isMuted()){
-          await localVideoTrack.unmute();
-          const raw=localVideoTrack.getTrack?.();if(raw)raw.enabled=true;
-          $('#localPreview').classList.remove('camera-off');
-          applyCameraOrientation(localVideoTrack);
         }else{
-          await localVideoTrack.mute();
-          $('#localPreview').classList.add('camera-off');
+          const raw=localVideoTrack.getTrack?.();
+          const isOff=localVideoTrack.isMuted?.() || raw?.enabled===false;
+          if(isOff){
+            await localVideoTrack.unmute();
+            if(raw)raw.enabled=true;
+            $('#localPreview').classList.remove('camera-off');
+            applyCameraOrientation(localVideoTrack);
+          }else{
+            await localVideoTrack.mute();
+            if(raw)raw.enabled=false;
+            $('#localPreview').classList.add('camera-off');
+          }
         }
-        button.textContent=localVideoTrack.isMuted()?'Turn Camera On':'Turn Camera Off';
-        status(localVideoTrack.isMuted()?'Your camera is off. Students see your teacher profile.':'Your camera is on and visible to the class.');
-      }catch(e){status('Camera control failed: '+(e?.message||e));toast('Camera control failed: '+(e?.message||e));}
-      finally{button.disabled=false;}
+        const raw=localVideoTrack?.getTrack?.();
+        const isOff=!raw || raw.readyState!=='live' || raw.enabled===false || localVideoTrack.isMuted?.();
+        button.textContent=isOff?'Turn Camera On':'Turn Camera Off';
+        status(isOff?'Your camera is off. Students see your teacher profile.':'Your camera is on and visible to the class.');
+      }catch(e){
+        status('Camera control failed: '+(e?.message||e));
+        toast('Camera control failed: '+(e?.message||e));
+      }finally{button.disabled=false;}
     });
   } catch(e) { status(e.message || 'Could not connect to the classroom.'); }
 }
