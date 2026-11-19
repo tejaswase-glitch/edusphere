@@ -19,7 +19,7 @@ async function showPdf(url, name, page = 1) {
     const lib = await loadPdfJs();
     pdfDoc = await lib.getDocument({url}).promise;
     currentPdfUrl = url;
-    $('#pdfViewer').classList.add('active');
+    $('#pdfViewer').classList.add('active');\n    document.querySelector('.room-shell')?.classList.add('pdf-active');
     $('#pdfName').textContent = name || 'Class PDF';
     await renderPdfPage(Math.min(Math.max(1, Number(page) || 1), pdfDoc.numPages));
     pdfStatus('PDF is being presented in this class.');
@@ -136,7 +136,7 @@ async function init() {
   });
   $('#pdfPrev').addEventListener('click',async()=>{if(isTeacher && pdfDoc){await renderPdfPage(pdfPage-1);await sendPdfState('pdf-page',{page:pdfPage});}});
   $('#pdfNext').addEventListener('click',async()=>{if(isTeacher && pdfDoc){await renderPdfPage(pdfPage+1);await sendPdfState('pdf-page',{page:pdfPage});}});
-  $('#pdfClose').addEventListener('click',async()=>{if(isTeacher){$('#pdfViewer').classList.remove('active');pdfDoc=null;await sendPdfState('pdf-presentation',{closed:true});}});
+  $('#pdfClose').addEventListener('click',async()=>{if(isTeacher){$('#pdfViewer').classList.remove('active');document.querySelector('.room-shell')?.classList.remove('pdf-active');pdfDoc=null;await sendPdfState('pdf-presentation',{closed:true});}});
   pdfChannel = sb.channel('class-pdf-' + classId);
   pdfChannel.on('broadcast',{event:'pdf-presentation'},({payload})=>{if(!isTeacher){if(payload?.closed){$('#pdfViewer').classList.remove('active');pdfDoc=null;}else if(payload?.url) showPdf(payload.url,payload.name,payload.page);}});
   pdfChannel.on('broadcast',{event:'pdf-page'},({payload})=>{if(!isTeacher && pdfDoc) renderPdfPage(payload.page);});
@@ -144,18 +144,26 @@ async function init() {
 
   $('#recordStop').addEventListener('click',stopRecording);
   $('#leaveRoom').addEventListener('click',()=>{
-    const leave = () => {
-      try { api?.executeCommand('hangup'); } catch {}
+    const button = $('#leaveRoom');
+    if (button.dataset.leaving === 'yes') return;
+    if (recorder?.state === 'recording' && !confirm('A recording is running. Stop it before leaving?')) return;
+    button.dataset.leaving = 'yes';
+    button.disabled = true;
+    button.textContent = 'Leaving…';
+    const destination = new URL('./', location.href).href;
+    const finishLeave = () => {
+      try { if (pdfChannel) sb.removeChannel(pdfChannel); } catch {}
       try { api?.dispose(); } catch {}
-      location.replace(new URL('./', document.baseURI).href);
+      location.replace(destination);
     };
-    if(recorder?.state==='recording'){
-      if(!confirm('A recording is running. Stop and save it before leaving?')) return;
-      recorder.addEventListener('stop',leave,{once:true});
+    if (recorder?.state === 'recording') {
+      recorder.addEventListener('stop', finishLeave, {once:true});
       stopRecording();
+      setTimeout(finishLeave, 2500);
       return;
     }
-    leave();
+    try { api?.executeCommand('hangup'); } catch {}
+    setTimeout(finishLeave, 250);
   });
   try {
     const {data:ticket,error:ticketError}=await sb.functions.invoke('jaas-token',{body:{classId}});
