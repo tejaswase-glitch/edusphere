@@ -333,7 +333,7 @@ async function init() {
     $('#pdfUploadLabel').classList.remove('hidden');
     $('#recordStart').classList.remove('hidden');
     $('#endForStudents').classList.remove('hidden');
-    $('#recordNote').textContent = 'One combined recorder: while a PDF is open it records the slides; when the PDF is closed it records the rear camera/whiteboard. Only the teacher microphone is added. Student audio/video and the dashboard are excluded. The video is saved locally; get consent first.';
+    $('#recordNote').classList.add('hidden');
   } else $('#recordNote').classList.add('hidden');
   $('#recordStart').addEventListener('click',startRecording);
   $('#pdfFile').addEventListener('change',async e=>{
