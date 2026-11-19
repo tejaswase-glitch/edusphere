@@ -134,22 +134,22 @@ async function startRecording() {
       });
       if(!video.videoWidth||!video.videoHeight) throw new Error('The live classroom camera preview has no video frames. Turn your camera on and retry.');
     }
-    recordCanvas=document.createElement('canvas'); recordCanvas.width=854; recordCanvas.height=480;
+    recordCanvas=document.createElement('canvas'); recordCanvas.width=1280; recordCanvas.height=720;
     const ctx=recordCanvas.getContext('2d');
     const drawTeachingFrame=()=>{
-      ctx.fillStyle='#fff'; ctx.fillRect(0,0,854,480);
+      const W=1280,H=720; ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
       if(pdfMode()){
         const source=$('#pdfCanvas');
         if(source.width>0&&source.height>0){
-          const scale=Math.min(854/source.width,480/source.height),w=source.width*scale,h=source.height*scale;
-          ctx.drawImage(source,(854-w)/2,(480-h)/2,w,h);
+          const scale=Math.min(W/source.width,H/source.height),w=source.width*scale,h=source.height*scale;
+          ctx.drawImage(source,(W-w)/2,(H-h)/2,w,h);
         }
       } else if(video.readyState>=2&&video.videoWidth){
-        const scale=Math.min(854/video.videoWidth,480/video.videoHeight),w=video.videoWidth*scale,h=video.videoHeight*scale;
-        ctx.drawImage(video,(854-w)/2,(480-h)/2,w,h);
+        const scale=Math.max(W/video.videoWidth,H/video.videoHeight),sw=W/scale,sh=H/scale,sx=(video.videoWidth-sw)/2,sy=(video.videoHeight-sh)/2;
+        ctx.drawImage(video,sx,sy,sw,sh,0,0,W,H);
       } else {
         ctx.fillStyle='#263858';ctx.font='bold 32px system-ui';ctx.textAlign='center';
-        ctx.fillText('Waiting for whiteboard camera…',427,240);
+        ctx.fillText('Waiting for whiteboard camera…',W/2,H/2);
       }
     };
     const paint=()=>{
@@ -306,6 +306,10 @@ async function init() {
     if(!localAudioTrack || !localVideoTrack) throw new Error('Could not create both classroom camera and microphone tracks.');
     const preview=$('#localPreview');
     await localVideoTrack.attach(preview);
+    // Jitsi may apply selfie mirroring inline; force the actual classroom preview to normal orientation.
+    preview.style.setProperty('transform','none','important');
+    preview.style.setProperty('-webkit-transform','none','important');
+    preview.style.setProperty('object-fit','cover','important');
     const roomOnly=ticket.roomName.slice(ticket.roomName.indexOf('/')+1);
     const options={
       hosts:{domain:'8x8.vc',muc:'conference.'+ticket.appId+'.8x8.vc',focus:'focus.8x8.vc'},
