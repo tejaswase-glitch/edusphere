@@ -102,7 +102,30 @@ async function startRecording() {
 }
 function stopRecording() { if (recorder && recorder.state !== 'inactive') recorder.stop(); }
 
+function bindLeaveButton() {
+  const button = $('#leaveRoom');
+  if (!button || button.dataset.bound === 'yes') return;
+  button.dataset.bound = 'yes';
+  button.addEventListener('click', () => {
+    if (button.dataset.leaving === 'yes') return;
+    if (recorder?.state === 'recording' && !confirm('A recording is running. Stop it before leaving?')) return;
+    button.dataset.leaving = 'yes';
+    button.disabled = true;
+    button.textContent = 'Leaving…';
+    const destination = new URL('./', location.href).href;
+    const finish = () => { location.replace(destination); };
+    if (recorder?.state === 'recording') {
+      recorder.addEventListener('stop', finish, {once:true});
+      stopRecording();
+      setTimeout(finish, 1800);
+    } else {
+      try { api?.executeCommand('hangup'); } catch {}
+      finish();
+    }
+  });
+}
 async function init() {
+  bindLeaveButton();
   if (!sb || !classId) { status('Cannot open class. Sign in through EduSphere and try again.'); return; }
   const {data:{session}} = await sb.auth.getSession();
   if (!session) { status('Your session expired. Sign in to EduSphere again.'); return; }
@@ -114,7 +137,6 @@ async function init() {
   if (error || !c || c.provider !== 'jitsi' || c.status !== 'scheduled') { status('This class is unavailable.'); return; }
   const teacher = profile.role === 'admin' || (profile.role === 'teacher' && c.created_by === profile.id);
   isTeacher = teacher;
-  if (profile.role === 'teacher' && !teacher) { status('Teachers can enter only their own classes.'); return; }
   if (profile.role === 'student' && !c.is_published) { status('This class is not published for students.'); return; }
   $('#roomTitle').textContent = c.title || 'EduSphere Live Classroom';
   $('#roomUser').textContent = (profile.full_name || profile.role) + ' · ' + profile.role;
@@ -151,24 +173,7 @@ async function init() {
   pdfChannel.subscribe();
 
   $('#recordStop').addEventListener('click',stopRecording);
-  $('#leaveRoom').addEventListener('click',()=>{
-    const button = $('#leaveRoom');
-    if (button.dataset.leaving === 'yes') return;
-    if (recorder?.state === 'recording' && !confirm('A recording is running. Stop it before leaving?')) return;
-    button.dataset.leaving = 'yes';
-    button.disabled = true;
-    button.textContent = 'Leaving…';
-    const destination = new URL('./', location.href).href;
-    const goBack = () => { location.href = destination; };
-    if (recorder?.state === 'recording') {
-      recorder.addEventListener('stop', goBack, {once:true});
-      stopRecording();
-      setTimeout(goBack, 1500);
-    } else {
-      try { api?.executeCommand('hangup'); } catch {}
-      goBack();
-    }
-  });
+
   try {
     const {data:ticket,error:ticketError}=await sb.functions.invoke('jaas-token',{body:{classId}});
     if(ticketError){let m=ticketError.message;try{m=(await ticketError.context.json()).error||m}catch{}throw new Error(m)}
