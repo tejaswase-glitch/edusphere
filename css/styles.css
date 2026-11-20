@@ -409,3 +409,6 @@ html.edusphere-app #site {
 html.edusphere-app #app {
   display: block !important;
 }
+
+/* Course playlists */
+.playlist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}.playlist-card{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff;box-shadow:var(--shadow-sm)}.playlist-card>img{width:100%;aspect-ratio:16/9;object-fit:cover;background:var(--lav)}.playlist-card .bd{padding:14px;display:grid;gap:8px}.playlist-videos{display:grid;gap:10px}.playlist-video{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:8px}.playlist-video img{width:120px;aspect-ratio:16/9;object-fit:cover;border-radius:8px;background:var(--lav)}@media(max-width:560px){.playlist-video{grid-template-columns:96px 1fr}.playlist-video img{width:96px}}
