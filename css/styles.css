@@ -409,3 +409,23 @@ html.edusphere-app #site {
 html.edusphere-app #app {
   display: block !important;
 }
+
+
+/* Playlist video fullscreen fallback for embedded Android WebViews */
+.playlist-player-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 10000 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  background: #000 !important;
+}
+.playlist-player-fullscreen iframe {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
