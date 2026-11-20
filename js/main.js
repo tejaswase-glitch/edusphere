@@ -82,7 +82,7 @@ renderContact();
 
 // Installable app (PWA). Relative path so it works under /edusphere/ on GitHub Pages.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  const reg = () => navigator.serviceWorker.register('./sw.js?v=20261120-homepage-subjects-fix').catch(e => console.warn('Service worker not registered:', e.message));
+  const reg = () => navigator.serviceWorker.register('./sw.js?v=20261120-demo-contact-playlists').catch(e => console.warn('Service worker not registered:', e.message));
   // main.js starts after a top-level await, so 'load' may already have fired.
   if (document.readyState === 'complete') reg(); else window.addEventListener('load', reg);
 }
