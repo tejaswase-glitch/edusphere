@@ -132,8 +132,6 @@ export async function playlistsView(el) {
         <div class="actions"><button class="btn btn-primary btn-sm" type="button" data-act="watchPlaylistVideo" data-id="${esc(v.id)}">Watch</button>
         ${staff && own ? `<button class="btn btn-outline-danger btn-sm" type="button" data-act="removePlaylistVideo" data-id="${esc(v.id)}">Remove</button>` : ''}</div>
       </article>`).join('')}</div>` : empty('No videos have been added to this playlist yet.')}</section>`;
-    const existingForm = $('#existingLectureForm', el);
-    if (existingForm) existingForm.addEventListener('submit', addExisting);
     const newForm = $('#newPlaylistVideoForm', el);
     if (newForm) newForm.addEventListener('submit', addNew);
   }
@@ -143,7 +141,8 @@ export async function playlistsView(el) {
       <p class="page-sub">Choose a lecture already saved in EduSphere’s Recorded Lectures. Its existing YouTube video and thumbnail will appear in this playlist.</p>
       <form id="existingLectureForm" class="form">
         <label>Recorded lecture<select name="lecture_id" required>${options(existingLectures.map(l => ({value:l.id,label:l.title + (l.subject ? ' · ' + l.subject : '')})), '', 'Choose an existing lecture')}</select></label>
-        <div class="actions"><button class="btn btn-primary" type="submit" ${existingLectures.length ? '' : 'disabled'}>Add selected video</button><button class="btn btn-soft" type="button" data-act="cancelAdd">Cancel</button></div><p class="fine" data-existing-status role="status" aria-live="polite"></p>
+        <div class="actions"><button class="btn btn-primary" type="button" data-act="addExistingVideo" ${existingLectures.length ? '' : 'disabled'}>Add selected video</button><button class="btn btn-soft" type="button" data-act="cancelAdd">Cancel</button></div>
+        <p class="fine" id="existingVideoStatus" role="status" aria-live="polite"></p><p class="fine" data-existing-status role="status" aria-live="polite"></p>
         ${existingLectures.length ? '' : '<small>No unused recorded lectures are available for this playlist.</small>'}
       </form></div>`;
   }
@@ -161,24 +160,28 @@ export async function playlistsView(el) {
       </form></div>`;
   }
 
-  async function addExisting(e) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const btn = form.querySelector('button[type="submit"]');
-    const status = form.querySelector('[data-existing-status]');
-    const id = String(new FormData(form).get('lecture_id') || '');
+  async function addExistingById(button) {
+    const select = $('#existingLectureForm select[name="lecture_id"]', el);
+    const status = $('#existingVideoStatus', el);
+    const id = select?.value || '';
     const lecture = existingLectures.find(l => l.id === id);
     if (!lecture) {
-      if (status) status.textContent = 'Please choose a recorded lecture first.';
-      return toast('Choose an existing recorded lecture.', 'bad');
+      if (status) status.textContent = 'Please select a recorded lecture first.';
+      toast('Choose an existing recorded lecture.', 'bad');
+      return;
     }
-    if (!selected || !selected.id) return toast('Please reopen the playlist and try again.', 'bad');
+    if (!selected?.id) {
+      if (status) status.textContent = 'Playlist not selected. Reopen it and try again.';
+      return;
+    }
     if (videos.some(v => v.video_id === lecture.video_id)) {
-      if (status) status.textContent = 'This video is already in the playlist.';
-      return toast('This video is already in the playlist.', 'bad');
+      if (status) status.textContent = 'This video is already in this playlist.';
+      toast('This video is already in the playlist.', 'bad');
+      return;
     }
-    if (btn) { btn.disabled = true; btn.textContent = 'Adding video…'; }
-    if (status) status.textContent = 'Saving video to this playlist…';
+    button.disabled = true;
+    button.textContent = 'Adding video…';
+    if (status) status.textContent = 'Saving video to playlist…';
     try {
       const { data, error } = await sb.from('playlist_videos').insert({
         playlist_id: selected.id, created_by: me, sort_order: videos.length,
@@ -186,16 +189,16 @@ export async function playlistsView(el) {
         thumbnail_url: lecture.thumbnail_url || null, is_published: !!lecture.is_published
       }).select('id').single();
       if (error) throw error;
-      if (!data?.id) throw new Error('The database did not confirm that the playlist video was saved.');
+      if (!data?.id) throw new Error('The database did not confirm that the video was saved.');
       toast('Existing Recorded Lecture added to playlist.', 'good');
       addMode = '';
       await openPlaylist(selected.id);
     } catch (err) {
       const message = err?.message || String(err);
-      if (status) status.textContent = 'Could not add video: ' + message;
+      if (status) status.textContent = 'Save failed: ' + message;
       fail(err, 'Could not add this recorded lecture to the playlist.');
     } finally {
-      if (btn && form.isConnected) { btn.disabled = false; btn.textContent = 'Add selected video'; }
+      if (button.isConnected) { button.disabled = false; button.textContent = 'Add selected video'; }
     }
   }
 
@@ -252,6 +255,7 @@ export async function playlistsView(el) {
       try { await loadExistingLectures(); drawDetail(); }
       catch (err) { hint.textContent = err?.message || 'Could not load recorded lectures.'; hint.className = 'note warn'; }
     },
+    addExistingVideo: (_, button) => addExistingById(button),
     chooseNew: () => { addMode = 'new'; drawDetail(); },
     cancelAdd: () => { addMode = ''; drawDetail(); },
     watchPlaylistVideo: ({id}) => watchVideo(id),
