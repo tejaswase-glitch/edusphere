@@ -39,12 +39,26 @@ export async function coursesView(el) {
   }
   function drawSubjects() {
     if (!admin) return;
-    $('#subCard', el).innerHTML = `<h3>Subjects</h3>${subjects.length ? `<div class="list">${subjects.map(s => `<div class="row"><div class="main"><b>${esc(s.name)}</b></div><span class="badge ${s.is_active ? 'ok' : 'mute'}">${s.is_active ? 'Active' : 'Hidden'}</span><div class="actions"><button class="btn btn-soft btn-sm" data-act="subEdit" data-id="${esc(s.id)}" type="button">Rename</button><button class="btn btn-soft btn-sm" data-act="subToggle" data-id="${esc(s.id)}" type="button">${s.is_active ? 'Hide' : 'Show'}</button><button class="btn btn-outline-danger btn-sm" data-act="subDel" data-id="${esc(s.id)}" type="button">Delete</button></div></div>`).join('')}</div>` : empty('No subjects yet (or run migration 002).')}
-      <form id="subForm" class="form" style="margin-top:12px;grid-template-columns:1fr auto;align-items:end" novalidate><label>New subject<input name="name" required maxlength="60"></label><button class="btn btn-primary" type="submit">Add subject</button></form>`;
+    $('#subCard', el).innerHTML = `<h3>Manage Homepage Subject Cards</h3>
+      <p class="hint">These settings control the Mathematics / Physics / Chemistry cards in the public homepage. This does not change Latest Lectures or live classes.</p>
+      ${subjects.length ? `<div class="list">${subjects.map(s => `<div class="row" style="align-items:flex-start">
+        <div class="main"><b>${esc(s.name)}</b><small>${esc(s.description || 'No description')}</small><small>Homepage: ${s.homepage_visible ? 'Visible' : 'Hidden'} · Order: ${Number(s.homepage_order || 0)}</small></div>
+        <div class="actions"><button class="btn btn-soft btn-sm" data-act="subEdit" data-id="${esc(s.id)}" type="button">Customize</button>
+        <button class="btn btn-soft btn-sm" data-act="homeToggle" data-id="${esc(s.id)}" type="button">${s.homepage_visible ? 'Hide from homepage' : 'Show on homepage'}</button>
+        <button class="btn btn-outline-danger btn-sm" data-act="subDel" data-id="${esc(s.id)}" type="button">Delete</button></div></div>`).join('')}</div>` : empty('No subjects yet.')}
+      <form id="subForm" class="form" style="margin-top:16px" novalidate>
+        <h3>Add homepage card</h3>
+        <label>Subject / card title<input name="name" required maxlength="60" placeholder="e.g. Biology"></label>
+        <label>Short description<input name="description" maxlength="160" placeholder="e.g. Human anatomy and physiology"></label>
+        <label>Image URL <small>(optional, paste a public image link)</small><input name="image_url" type="url" placeholder="https://..."></label>
+        <label>Homepage position <input name="homepage_order" type="number" value="0" min="0" step="1"></label>
+        <button class="btn btn-primary" type="submit">Add card</button>
+      </form>`;
     $('#subForm', el).addEventListener('submit', async e => {
-      e.preventDefault(); const name = String(new FormData(e.currentTarget).get('name')).trim(); if (!name) return;
-      const { error } = await sb.from('subjects').insert({ name, created_by: me });
-      if (error) return fail(error, /duplicate/i.test(error.message) ? 'That subject already exists.' : undefined); toast('Subject added.', 'good'); await load();
+      e.preventDefault(); const f = Object.fromEntries(new FormData(e.currentTarget)); const name=String(f.name||'').trim(); if (!name) return;
+      const image=String(f.image_url||'').trim(); if(image && !/^https:\/\//i.test(image)) return toast('Image URL must start with https://','bad');
+      const { error } = await sb.from('subjects').insert({ name, description:String(f.description||'').trim(), image_url:image, homepage_order:Number(f.homepage_order)||0, homepage_visible:true, created_by:me });
+      if (error) return fail(error, /duplicate/i.test(error.message) ? 'That subject already exists.' : undefined); toast('Homepage card added.', 'good'); await load();
     });
   }
   await load();
@@ -57,7 +71,17 @@ export async function coursesView(el) {
       if (!await confirmDialog({ title: 'Delete this course?', text: `"${c.title}" will be removed. Materials and classes linked to it stay, but lose the course link. This is recorded in the audit log.`, confirm: 'Delete course' })) return;
       const { data, error } = await sb.from('courses').delete().eq('id', id).select('id'); if (error) return fail(error); if (!data?.length) return toast('Not allowed.', 'bad'); toast('Course deleted.', 'good'); await load();
     },
-    subEdit: async ({ id }) => { const s=subjects.find(x=>x.id===id); const name=prompt('Enter the new subject name:',s.name); if(name===null)return; const clean=name.trim(); if(!clean)return toast('Subject name cannot be empty.','bad'); const {error}=await sb.from('subjects').update({name:clean}).eq('id',id); if(error)return fail(error); toast('Subject renamed.','good'); await load(); },
+    subEdit: async ({ id }) => {
+      const s=subjects.find(x=>x.id===id);
+      const name=prompt('Card title:',s.name); if(name===null)return;
+      const description=prompt('Short description:',s.description||''); if(description===null)return;
+      const image_url=prompt('Public image URL (leave blank for default subject image):',s.image_url||''); if(image_url===null)return;
+      const order=prompt('Homepage position (0 appears first):',String(s.homepage_order||0)); if(order===null)return;
+      if(image_url.trim() && !/^https:\/\//i.test(image_url.trim()))return toast('Image URL must start with https://','bad');
+      const {error}=await sb.from('subjects').update({name:name.trim(),description:description.trim(),image_url:image_url.trim(),homepage_order:Number(order)||0}).eq('id',id);
+      if(error)return fail(error); toast('Homepage card customized.','good'); await load();
+    },
+    homeToggle: async ({ id }) => { const s=subjects.find(x=>x.id===id); const {error}=await sb.from('subjects').update({homepage_visible:!s.homepage_visible}).eq('id',id); if(error)return fail(error); toast(s.homepage_visible?'Card hidden from homepage.':'Card shown on homepage.','good'); await load(); },
     subToggle: async ({ id }) => { const s = subjects.find(x => x.id === id); const { error } = await sb.from('subjects').update({ is_active: !s.is_active }).eq('id', id); if (error) return fail(error); await load(); },
     subDel: async ({ id }) => {
       const s = subjects.find(x => x.id === id);
