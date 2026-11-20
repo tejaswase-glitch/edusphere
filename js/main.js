@@ -39,7 +39,7 @@ async function renderContact(){
  const grid=$('#contactGrid');
  grid.innerHTML=items.length?items.map(([label,value,href])=>`<div class="contact-item"><small>${label}</small>${href?`<a href="${esc(href(value))}" ${label==='WhatsApp'?'target="_blank" rel="noopener noreferrer"':''}>${esc(value)}</a>`:`<span>${esc(value)}</span>`}</div>`).join(''):`<p class="fine">${esc(d.contact_message||'Questions about registration or approval? Please contact the EduSphere administrator.')}</p>`;
  if(d.contact_message&&items.length)grid.insertAdjacentHTML('beforeend',`<p class="fine">${esc(d.contact_message)}</p>`);
- const social=[['YouTube',d.youtube_url||cfg.YOUTUBE_URL,'YT'],['Facebook',d.facebook_url||cfg.FACEBOOK_URL,'f'],['Telegram',d.telegram_url||cfg.TELEGRAM_URL,'TG']].filter(x=>/^https:\\/\\//i.test(x[1]||''));
+ const social=[['YouTube',d.youtube_url||cfg.YOUTUBE_URL,'YT'],['Facebook',d.facebook_url||cfg.FACEBOOK_URL,'f'],['Telegram',d.telegram_url||cfg.TELEGRAM_URL,'TG']].filter(x=>/^https:\/\//i.test(x[1]||''));
  if(social.length){$('#followBox').hidden=false;$('#followLinks').innerHTML=social.map(([n,u,label])=>`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer" aria-label="${n}">${label}</a>`).join(' ');}
 }
 renderContact();
