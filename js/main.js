@@ -1,8 +1,7 @@
 // Entry point: public site behaviour + wiring.
-import { cfg, sb, $, $$, esc, toast, openModal } from './core.js';
+import { cfg, sb, sdkReady, $, $, esc, toast, openModal } from './core.js';
 import { initAuth, openLogin, openRegister, logout } from './auth.js';
 import { initPortal } from './portal.js?v=20261120-demo-contact-playlists';
-import { getSubjects } from './data.js?v=20261120-homepage-cards';
 
 initPortal(); initAuth();
 
@@ -26,6 +25,8 @@ $('#year').textContent = new Date().getFullYear();
 
 // Contact and social details are editable by Admin > Site Contact & Settings.
 async function renderContact(){
+ await sdkReady;
+ if(!sb) return;
  const {data,error}=await sb.from('site_settings').select('*').eq('id','main').maybeSingle();
  if(error)console.warn('Contact settings unavailable:',error.message);
  const d=data||{};
@@ -48,6 +49,7 @@ renderContact();
 
 // Never leave the built-in sample cards visible when the database is unavailable or has no visible subjects.
 (async()=>{
+  await sdkReady;
   const grid=$('#subjectGrid');
   grid.innerHTML='<p class="fine">Loading subjects…</p>';
   if(!sb){grid.innerHTML='<p class="fine">Subjects are temporarily unavailable. Please refresh the page.</p>';return;}
@@ -62,6 +64,7 @@ renderContact();
 
 // Homepage demo lectures: only admin-selected rows are returned by the public-safe RLS policy.
 (async()=>{
+ await sdkReady;
  if(!sb)return;
  const {data,error}=await sb.from('homepage_lectures').select('id,title,subject,description,video_id,thumbnail_url,visibility').eq('is_active',true).order('created_at',{ascending:false}).limit(12);
  if(error||!data?.length)return;
@@ -73,6 +76,7 @@ renderContact();
 
 // Public lecture previews remain registration prompts; they do not expose private video IDs.
 (async () => {
+ await sdkReady;
  if (!sb) return;
  const { data, error } = await sb.from('public_lectures').select('id,title,subject,description,thumbnail_url,teacher_name').limit(8);
  if (error || !data?.length) return;
