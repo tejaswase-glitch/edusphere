@@ -86,6 +86,7 @@ public class MainActivity extends Activity {
                 Uri uri = request.getUrl();
                 String host = uri.getHost();
                 if (host != null && (host.equals("tejaswase-glitch.github.io") || host.endsWith(".jitsi.net") || host.equals("meet.jit.si") || host.equals("8x8.vc"))) return false;
+                if (host != null && (host.equals("youtube.com") || host.endsWith(".youtube.com") || host.equals("youtu.be") || host.equals("youtube-nocookie.com") || host.endsWith(".youtube-nocookie.com"))) return true;
                 if ("https".equals(uri.getScheme())) {
                     try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); }
                     catch (Exception ignored) { }
