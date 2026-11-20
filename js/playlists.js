@@ -1,5 +1,5 @@
 // Course playlists with an individual thumbnail for every video.
-import { sb, state, $, esc, toast, fail, confirmDialog, ytId, subjectArt } from './core.js';
+import { sb, state, $, esc, toast, fail, confirmDialog, ytId, subjectArt, openModal, closeModal } from './core.js';
 import { empty, actions, loading } from './ui.js';
 import { getCourses } from './data.js';
 const BUCKET='lecture-thumbnails', MAX=2*1024*1024;
@@ -44,7 +44,7 @@ export async function playlistsView(el){
   playlists=data||[];draw();
  }
  function draw(){
-  $('#plList').innerHTML=playlists.length?`<div class="playlist-grid">${playlists.map(p=>`<article class="playlist-card"><img src="${esc(p.thumbnail_url||subjectArt(p.courses?.title))}" alt="" loading="lazy"><div class="bd"><h3>${esc(p.title)}</h3><small>${esc(p.courses?.title||'Course')} · ${p.is_published?'Published':'Draft'}</small><p>${esc(p.description||'')}</p><div class="actions"><button class="btn btn-primary btn-sm" data-act="open" data-id="${p.id}">Open playlist</button>${staff&&(admin||p.created_by===me)?`<button class="btn btn-soft btn-sm" data-act="edit" data-id="${p.id}">Edit</button><button class="btn btn-outline-danger btn-sm" data-act="del" data-id="${p.id}">Delete</button>`:''}</div></div></article>`).join('')}</div>`:empty('No playlists have been published yet.');
+  $('#plList').innerHTML=playlists.length?`<div class="playlist-grid">${playlists.map(p=>`<article class="playlist-card" data-act="open" data-id="${p.id}" role="button" tabindex="0"><img src="${esc(p.thumbnail_url||subjectArt(p.courses?.title))}" alt="" loading="lazy"><div class="bd"><h3>${esc(p.title)}</h3><small>${esc(p.courses?.title||'Course')} · ${p.is_published?'Published':'Draft'}</small><p>${esc(p.description||'')}</p><div class="actions"><button class="btn btn-primary btn-sm" data-act="open" data-id="${p.id}">Open playlist</button>${staff&&(admin||p.created_by===me)?`<button class="btn btn-soft btn-sm" data-act="edit" data-id="${p.id}">Edit</button><button class="btn btn-outline-danger btn-sm" data-act="del" data-id="${p.id}">Delete</button>`:''}</div></div></article>`).join('')}</div>`:empty('No playlists have been published yet.');
  }
  async function open(id){
   selected=playlists.find(p=>p.id===id);if(!selected)return;
@@ -61,16 +61,40 @@ export async function playlistsView(el){
  }
  function drawDetail(){
   const own=admin||selected.created_by===me;
-  $('#plDetail').innerHTML=`<section class="card" style="margin-top:18px"><h2>${esc(selected.title)}</h2><p class="page-sub">${esc(selected.description||'')}</p>
-  ${staff&&own?`<div class="card" style="margin:14px 0;padding:14px"><h3>Add an existing recorded lecture</h3><p class="page-sub">Select a lecture already saved in Recorded Lectures. Its title, video and thumbnail will be reused.</p><div class="actions"><select id="existingLectureSelect" aria-label="Choose an existing lecture" style="flex:1;min-width:180px"><option value="">Choose an existing lecture</option>${existingLectures.filter(l=>!videos.some(v=>v.video_id===l.video_id)).map(l=>`<option value="${l.id}">${esc(l.title)}${l.subject?' · '+esc(l.subject):''}</option>`).join('')}</select><button class="btn btn-primary" type="button" data-act="addExisting">Add selected lecture</button></div>${existingLectures.filter(l=>!videos.some(v=>v.video_id===l.video_id)).length?'':'<small>There are no unused saved lectures available to add.</small>'}</div><h3>${videoEditing?'Edit video':'Add a video manually'}</h3><form id="vidForm" class="form">
-   <label>Video title<input name="title" required maxlength="120" value="${esc(videoEditing?.title||'')}"></label>
-   <label>YouTube link or video ID<input name="video" required value="${esc(videoEditing?.video_id||'')}" placeholder="YouTube link"></label>
-   <label>Video thumbnail <small>Separate image for this video · JPG/PNG/WEBP · max 2 MB</small><input name="thumb" type="file" accept="image/jpeg,image/png,image/webp" ${videoEditing?"":"required"}></label>
-   <label>Description<textarea name="description" maxlength="600">${esc(videoEditing?.description||'')}</textarea></label>
-   <label class="check"><input name="publish" type="checkbox" ${videoEditing?videoEditing.is_published?'checked':'':'checked'}> Publish this video</label>
-   <div class="actions"><button class="btn btn-primary" type="submit">${videoEditing?'Save video':'Add video'}</button>${videoEditing?'<button class="btn btn-soft" type="button" data-act="cancelVideo">Cancel</button>':''}</div></form>`:''}
-  <div class="playlist-videos" style="margin-top:16px">${videos.length?videos.filter(v=>staff||v.is_published).map((v,i)=>`<article class="playlist-video"><img src="${esc(v.thumbnail_url||'https://i.ytimg.com/vi/'+v.video_id+'/hqdefault.jpg')}" alt=""><div><b>${esc(v.title)}</b><small>${v.is_published?'Published':'Draft'}</small><div class="actions"><button class="btn btn-primary btn-sm" data-act="watchVideo" data-id="${v.id}">Watch</button>${staff&&own?`<button class="btn btn-soft btn-sm" data-act="editVideo" data-id="${v.id}">Edit</button><button class="btn btn-outline-danger btn-sm" data-act="delVideo" data-id="${v.id}">Delete</button>`:''}</div></div></article>`).join(''):empty('No videos in this playlist yet.')}</div></section>`;
+  $('#plDetail').innerHTML=`<section class="card" style="margin-top:18px">
+   <div class="sec-head" style="margin-top:0"><div><h2>${esc(selected.title)}</h2><p class="page-sub">${esc(selected.description||'')}</p></div>${staff&&own?'<button class="btn btn-primary btn-sm" type="button" data-act="addVideo">+ Add video</button>':''}</div>
+   <div class="playlist-videos" style="margin-top:16px">${videos.length?videos.filter(v=>staff||v.is_published).map(v=>`<article class="playlist-video"><img src="${esc(v.thumbnail_url||'https://i.ytimg.com/vi/'+v.video_id+'/hqdefault.jpg')}" alt=""><div><b>${esc(v.title)}</b><small>${v.is_published?'Published':'Draft'}</small><div class="actions"><button class="btn btn-primary btn-sm" data-act="watchVideo" data-id="${v.id}">Watch</button>${staff&&own?`<button class="btn btn-soft btn-sm" data-act="editVideo" data-id="${v.id}">Edit</button><button class="btn btn-outline-danger btn-sm" data-act="delVideo" data-id="${v.id}">Delete</button>`:''}</div></div></article>`).join(''):empty('No videos in this playlist yet.')}</div></section>`;
+ }
+ function openVideoForm(mode='manual'){
+  const own=admin||selected.created_by===me;
+  if(!staff||!own)return;
+  const available=existingLectures.filter(l=>!videos.some(v=>v.video_id===l.video_id));
+  const formHtml=`<h2 id="modalTitle">${videoEditing?'Edit playlist video':'Add video to playlist'}</h2>
+   <div class="actions" style="margin:14px 0"><button class="btn ${mode==='manual'?'btn-primary':'btn-soft'}" type="button" id="manualTab">Add new video</button><button class="btn ${mode==='existing'?'btn-primary':'btn-soft'}" type="button" id="existingTab">Use saved lecture</button></div>
+   <section id="manualPanel" ${mode==='existing'?'hidden':''}>
+    <form id="vidForm" class="form">
+     <label>Video title<input name="title" required maxlength="120" value="${esc(videoEditing?.title||'')}"></label>
+     <label>YouTube link or video ID<input name="video" required value="${esc(videoEditing?.video_id||'')}" placeholder="YouTube link"></label>
+     <label>Video thumbnail <small>Separate image for this video · JPG/PNG/WEBP · max 2 MB</small><input name="thumb" type="file" accept="image/jpeg,image/png,image/webp" ${videoEditing?'':'required'}></label>
+     <label>Description<textarea name="description" maxlength="600">${esc(videoEditing?.description||'')}</textarea></label>
+     <label class="check"><input name="publish" type="checkbox" ${videoEditing?(videoEditing.is_published?'checked':''):'checked'}> Publish this video</label>
+     <div class="actions"><button class="btn btn-primary" type="submit">${videoEditing?'Save video':'Add video'}</button><button class="btn btn-soft" type="button" id="cancelVideoForm">Cancel</button></div>
+    </form>
+   </section>
+   <section id="existingPanel" ${mode!=='existing'?'hidden':''}>
+    <p class="page-sub">Choose a lecture already saved in Recorded Lectures. Its video and individual thumbnail will be reused.</p>
+    <form id="existingLectureForm" class="form">
+     <label>Saved recorded lecture<select id="existingLectureSelect" required><option value="">Choose a lecture</option>${available.map(l=>`<option value="${l.id}">${esc(l.title)}${l.subject?' · '+esc(l.subject):''}</option>`).join('')}</select></label>
+     ${available.length?'':'<p class="hint">No unused saved lectures are available for this playlist.</p>'}
+     <div class="actions"><button class="btn btn-primary" type="submit" ${available.length?'':'disabled'}>Add selected lecture</button><button class="btn btn-soft" type="button" id="cancelExistingForm">Cancel</button></div>
+    </form>
+   </section>`;
+  openModal(formHtml,{xl:true});
+  $('#manualTab').onclick=()=>openVideoForm('manual');
+  $('#existingTab').onclick=()=>openVideoForm('existing');
+  $('#cancelVideoForm').onclick=$('#cancelExistingForm').onclick=()=>{videoEditing=null;closeModal();};
   const vf=$('#vidForm');if(vf)vf.onsubmit=saveVideo;
+  const ef=$('#existingLectureForm');if(ef)ef.onsubmit=async e=>{e.preventDefault();await addExistingLecture();};
  }
  async function addExistingLecture(){
   const id=$('#existingLectureSelect')?.value;
@@ -81,7 +105,7 @@ export async function playlistsView(el){
    const {data,error}=await sb.from('playlist_videos').insert({playlist_id:selected.id,created_by:me,sort_order:videos.length,title:lecture.title,description:lecture.description||'',video_id:lecture.video_id,thumbnail_url:lecture.thumbnail_url||null,is_published:!!lecture.is_published}).select('id');
    if(error)throw error;
    if(!data?.length)throw new Error('You cannot add this lecture to the selected playlist.');
-   toast('Existing lecture added to playlist.','good');await open(selected.id);
+   toast('Existing lecture added to playlist.','good');closeModal();await open(selected.id);
   }catch(err){fail(err);}
  }
  async function saveVideo(e){
@@ -92,18 +116,18 @@ export async function playlistsView(el){
    const row={title:String(f.get('title')).trim(),video_id:id,description:String(f.get('description')||'').trim(),is_published:!!f.get('publish'),...(thumb?{thumbnail_url:thumb}:{})};
    const res=videoEditing?await sb.from('playlist_videos').update(row).eq('id',videoEditing.id).select('id'):await sb.from('playlist_videos').insert({...row,playlist_id:selected.id,created_by:me,sort_order:videos.length}).select('id');
    if(res.error)throw res.error;if(!res.data?.length)throw new Error('You cannot change this video.');
-   toast(videoEditing?'Video updated.':'Video added.','good');videoEditing=null;await open(selected.id);
+   toast(videoEditing?'Video updated.':'Video added.','good');videoEditing=null;closeModal();await open(selected.id);
   }catch(err){fail(err);}finally{btn.disabled=false;}
  }
  if(staff)form();await load();
  actions(el,{
   cancel:()=>{editing=null;form();},
   addExisting:()=>addExistingLecture(),
-  cancelVideo:()=>{videoEditing=null;drawDetail();},
+  addVideo:()=>{videoEditing=null;openVideoForm('manual');},
   open:({id})=>open(id),
   edit:({id})=>{editing=playlists.find(x=>x.id===id);form();el.scrollIntoView({behavior:'smooth'});},
   del:async({id})=>{const p=playlists.find(x=>x.id===id);if(!await confirmDialog({title:'Delete playlist?',text:'This permanently deletes its playlist videos too.',confirm:'Delete playlist'}))return;const {error}=await sb.from('course_playlists').delete().eq('id',id);if(error)return fail(error);selected=null;$('#plDetail').innerHTML='';await load();},
-  editVideo:({id})=>{videoEditing=videos.find(v=>v.id===id);drawDetail();},
+  editVideo:({id})=>{videoEditing=videos.find(v=>v.id===id);openVideoForm('manual');},
   delVideo:async({id})=>{if(!await confirmDialog({title:'Delete video?',text:'This removes the video from this playlist.',confirm:'Delete video'}))return;const {error}=await sb.from('playlist_videos').delete().eq('id',id);if(error)return fail(error);await open(selected.id);},
   watchVideo:({id})=>{const v=videos.find(x=>x.id===id);if(!v)return;const d=document.createElement('dialog');d.className='dlg dlg-xl';d.innerHTML=`<button class="dlg-x" type="button">×</button><h2>${esc(v.title)}</h2><div class="player"><iframe title="${esc(v.title)}" src="https://www.youtube-nocookie.com/embed/${esc(v.video_id)}?rel=0&modestbranding=1" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div><p>${esc(v.description||'')}</p>`;document.body.append(d);d.querySelector('button').onclick=()=>d.close();d.addEventListener('close',()=>d.remove(),{once:true});d.showModal();}
  });
