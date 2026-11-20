@@ -68,6 +68,9 @@ public class MainActivity extends Activity {
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
+        // Always fetch the current EduSphere web app; stale WebView HTTP cache can show deleted homepage cards.
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        webView.clearCache(true);
         settings.setDomStorageEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);
@@ -141,7 +144,7 @@ public class MainActivity extends Activity {
             }
         });
 
-        if (savedInstanceState == null) webView.loadUrl("https://tejaswase-glitch.github.io/edusphere/");
+        if (savedInstanceState == null) webView.loadUrl("https://tejaswase-glitch.github.io/edusphere/?app_refresh=20261120");
         else webView.restoreState(savedInstanceState);
 
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
