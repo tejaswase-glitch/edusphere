@@ -1,7 +1,7 @@
 // Entry point: public site behaviour + wiring.
-import { cfg, sb, $, $, esc, toast, openModal } from './core.js';
+import { cfg, sb, $, $$, esc, toast, openModal } from './core.js';
 import { initAuth, openLogin, openRegister, logout } from './auth.js';
-import { initPortal } from './portal.js?v=20261119-login-shell-fix';
+import { initPortal } from './portal.js?v=20261120-demo-contact-playlists';
 import { getSubjects } from './data.js?v=20261120-homepage-cards';
 
 initPortal(); initAuth();
