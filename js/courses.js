@@ -1,7 +1,7 @@
 // Courses (all roles) + subjects (admin). Teachers manage only their own courses.
 import { sb, state, $, esc, toast, fail, confirmDialog, subjectArt } from './core.js';
 import { empty, actions, loading } from './ui.js';
-import { getSubjects } from './data.js';
+import { getSubjects } from './data.js?v=20261120-homepage-cards';
 import { subjectField } from './data.js';
 
 export async function coursesView(el) {
