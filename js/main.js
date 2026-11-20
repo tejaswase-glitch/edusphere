@@ -32,7 +32,19 @@ if (social.length) { $('#followBox').hidden = false; $('#followLinks').innerHTML
 
 
 // Homepage subjects are configured by Admin > Courses & Subjects.
-(async()=>{if(!sb)return;try{const subjects=(await getSubjects()).filter(s=>s.homepage_visible!==false).sort((a,b)=>(Number(a.homepage_order)||0)-(Number(b.homepage_order)||0)),grid=$('#subjectGrid');if(subjects.length)grid.innerHTML=subjects.map((s,i)=>'<article class="subject-card" data-subject="'+esc(s.name)+'"><img src="'+esc(s.image_url||('assets/'+(['biology','mathematics','physics','chemistry'].find(n=>String(s.name).toLowerCase().includes(n))||'generic')+'.svg'))+'" alt="" loading="lazy" width="400" height="300"><div><h3>'+esc(s.name)+'</h3><p class="sc-sub">'+esc(s.description||'Explore lessons and study materials')+'</p><button class="btn btn-play '+(i%2?'alt':'')+'" data-register type="button">Register to Watch</button></div></article>').join('');else grid.innerHTML='<p class="fine">New lectures and subjects will appear here soon.</p>';}catch(e){console.warn('Could not load admin subjects:',e);}})();
+// Never leave the built-in sample cards visible when the database is unavailable or has no visible subjects.
+(async()=>{
+  const grid=$('#subjectGrid');
+  grid.innerHTML='<p class="fine">Loading subjects…</p>';
+  if(!sb){grid.innerHTML='<p class="fine">Subjects are temporarily unavailable. Please refresh the page.</p>';return;}
+  try{
+    const {data,error}=await sb.from('subjects').select('id,name,description,homepage_visible,homepage_order,image_url').order('homepage_order').order('name');
+    if(error) throw error;
+    const subjects=(data||[]).filter(s=>s.homepage_visible!==false).sort((a,b)=>(Number(a.homepage_order)||0)-(Number(b.homepage_order)||0));
+    if(subjects.length) grid.innerHTML=subjects.map((s,i)=>'<article class="subject-card" data-subject="'+esc(s.name)+'"><img src="'+esc(s.image_url||('assets/'+(['biology','mathematics','physics','chemistry'].find(n=>String(s.name).toLowerCase().includes(n))||'generic')+'.svg'))+'" alt="" loading="lazy" width="400" height="300"><div><h3>'+esc(s.name)+'</h3><p class="sc-sub">'+esc(s.description||'Explore lessons and study materials')+'</p><button class="btn btn-play '+(i%2?'alt':'')+'" data-register type="button">Register to Watch</button></div></article>').join('');
+    else grid.innerHTML='<p class="fine">No subjects are currently published.</p>';
+  }catch(e){console.warn('Could not load admin subjects:',e);grid.innerHTML='<p class="fine">Could not load subjects. Please refresh the page.</p>';}
+})();
 
 // Public lecture previews: reads ONLY the safe view (title, subject, short description, thumbnail). No video id, no links.
 (async () => {
@@ -45,7 +57,7 @@ if (social.length) { $('#followBox').hidden = false; $('#followLinks').innerHTML
 
 // Installable app (PWA). Relative path so it works under /edusphere/ on GitHub Pages.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  const reg = () => navigator.serviceWorker.register('./sw.js?v=20261119-shell-restore-4').catch(e => console.warn('Service worker not registered:', e.message));
+  const reg = () => navigator.serviceWorker.register('./sw.js?v=20261120-homepage-subjects-fix').catch(e => console.warn('Service worker not registered:', e.message));
   // main.js starts after a top-level await, so 'load' may already have fired.
   if (document.readyState === 'complete') reg(); else window.addEventListener('load', reg);
 }
