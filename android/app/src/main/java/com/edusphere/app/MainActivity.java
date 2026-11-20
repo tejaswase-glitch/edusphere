@@ -46,6 +46,9 @@ public class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 42;
     private static final int RECORDING_SAVE_REQUEST = 43;
     private WebView webView;
+    private View fullscreenView;
+    private WebChromeClient.CustomViewCallback fullscreenCallback;
+    private int oldSystemUi;
     private PermissionRequest pendingWebPermission;
     private ValueCallback<Uri[]> fileCallback;
     private FrameLayout rootLayout;
@@ -93,6 +96,18 @@ public class MainActivity extends Activity {
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override public void onShowCustomView(View view, CustomViewCallback callback) {
+                runOnUiThread(() -> {
+                    if (fullscreenView != null) { callback.onCustomViewHidden(); return; }
+                    fullscreenView = view;
+                    fullscreenCallback = callback;
+                    oldSystemUi = getWindow().getDecorView().getSystemUiVisibility();
+                    webView.setVisibility(View.GONE);
+                    rootLayout.addView(view, new FrameLayout.LayoutParams(-1, -1));
+                    getWindow().getDecorView().setSystemUiVisibility(5894 | 1024 | 512 | 4096);
+                });
+            }
+            @Override public void onHideCustomView() { runOnUiThread(() -> exitFullscreen()); }
             @Override public void onPermissionRequest(PermissionRequest request) {
                 runOnUiThread(() -> {
                     ArrayList<String> needed = new ArrayList<>();
@@ -244,7 +259,17 @@ public class MainActivity extends Activity {
         webView.saveState(outState);
     }
 
+    private void exitFullscreen() {
+        if (fullscreenView == null) return;
+        rootLayout.removeView(fullscreenView);
+        fullscreenView = null;
+        webView.setVisibility(View.VISIBLE);
+        getWindow().getDecorView().setSystemUiVisibility(oldSystemUi);
+        if (fullscreenCallback != null) { fullscreenCallback.onCustomViewHidden(); fullscreenCallback = null; }
+    }
+
     @Override public void onBackPressed() {
+        if (fullscreenView != null) { exitFullscreen(); return; }
         String url = webView == null ? "" : webView.getUrl();
         if (url != null && url.contains("classroom.html")) {
             webView.loadUrl("https://tejaswase-glitch.github.io/edusphere/");
