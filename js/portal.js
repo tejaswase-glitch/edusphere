@@ -5,19 +5,20 @@ import { studentDashboard, profileView } from './student.js';
 import { adminDashboard, teacherDashboard, studentsView, teachersView, adminsView, auditView } from './admin.js?v=20261119-second-admin';
 import { coursesView } from './courses.js?v=20261120-gallery-upload-2';
 import { lecturesView } from './lectures.js';
+import { playlistsView } from './playlists.js';
 import { materialsView } from './materials.js';
 import { classesView } from './classes.js?v=20261119-classroom-record';
 import { recorderView, stopRecording, isRecording } from './recorder.js';
 
 const NAV = {
-  student: [['dashboard', 'Dashboard', 'home'], ['courses', 'My Courses', 'book'], ['classes', 'Live Classes', 'live'], ['lectures', 'Recorded Lectures', 'play'], ['materials', 'Study Materials', 'doc'], ['profile', 'My Profile', 'user']],
+  student: [['dashboard', 'Dashboard', 'home'], ['courses', 'My Courses', 'book'], ['classes', 'Live Classes', 'live'], ['lectures', 'Recorded Lectures', 'play'], ['playlists', 'Course Playlists', 'play'], ['materials', 'Study Materials', 'doc'], ['profile', 'My Profile', 'user']],
   teacher: [['dashboard', 'Dashboard', 'home'], ['courses', 'My Courses', 'book'], ['materials', 'Study Materials', 'doc'], ['lectures', 'Recorded Lectures', 'play'], ['classes', 'Live Classes', 'live'], ['recorder', 'Record Screen', 'rec'], ['profile', 'My Profile', 'user']],
   admin: [['dashboard', 'Dashboard', 'home'], ['students', 'Students', 'users'], ['teachers', 'Teachers', 'user'], ['admins', 'Administrators', 'shield'], ['courses', 'Courses & Subjects', 'book'], ['materials', 'Study Materials', 'doc'], ['lectures', 'Recorded Lectures', 'play'], ['classes', 'Live Classes', 'live'], ['audit', 'Audit Log', 'list'], ['profile', 'My Profile', 'shield']],
 };
 const VIEWS = {
   dashboard: () => ({ student: studentDashboard, teacher: teacherDashboardLite, admin: adminDashboard })[state.profile.role],
   students: () => studentsView, teachers: () => teachersView, admins: () => adminsView, audit: () => auditView,
-  courses: () => coursesView, lectures: () => lecturesView, materials: () => materialsView,
+  courses: () => coursesView, lectures: () => lecturesView, playlists: () => playlistsView, materials: () => materialsView,
   classes: () => classesView, recorder: () => recorderView, profile: () => profileView,
 };
 
