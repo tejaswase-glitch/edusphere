@@ -91,15 +91,21 @@ export async function coursesView(el) {
       const name=prompt('Card title:',s.name); if(name===null)return;
       const description=prompt('Short description:',s.description||''); if(description===null)return;
       const order=prompt('Homepage position (0 appears first):',String(s.homepage_order||0)); if(order===null)return;
-      const picker=document.createElement('input'); picker.type='file'; picker.accept='image/jpeg,image/png,image/webp,image/*';
+      const {error}=await sb.from('subjects').update({name:name.trim(),description:description.trim(),homepage_order:Number(order)||0}).eq('id',id);
+      if(error)return fail(error);
+      const picker=document.createElement('input'); picker.type='file'; picker.accept='image/*';
       picker.onchange=async()=>{
-        let image_url=s.image_url||'';
-        try { if(picker.files?.[0]) { toast('Uploading new card image…'); image_url=await uploadHomepageCardImage(picker.files[0]); } }
-        catch(err){ return fail(err); }
-        const {error}=await sb.from('subjects').update({name:name.trim(),description:description.trim(),image_url,homepage_order:Number(order)||0}).eq('id',id);
-        if(error)return fail(error); toast('Homepage card customized.','good'); await load();
+        const file=picker.files?.[0]; if(!file)return;
+        try {
+          const image_url=await uploadHomepageCardImage(file);
+          const {error:saveError}=await sb.from('subjects').update({image_url}).eq('id',id);
+          if(saveError)return fail(saveError);
+          toast('Card details and image updated.','good'); await load();
+        } catch(err){ return fail(err); }
       };
+      toast('Card details saved. Choose a new image if you want to replace the current one.','good');
       picker.click();
+      await load();
     },
     homeToggle: async ({ id }) => { const s=subjects.find(x=>x.id===id); const {error}=await sb.from('subjects').update({homepage_visible:!s.homepage_visible}).eq('id',id); if(error)return fail(error); toast(s.homepage_visible?'Card hidden from homepage.':'Card shown on homepage.','good'); await load(); },
     subToggle: async ({ id }) => { const s = subjects.find(x => x.id === id); const { error } = await sb.from('subjects').update({ is_active: !s.is_active }).eq('id', id); if (error) return fail(error); await load(); },
