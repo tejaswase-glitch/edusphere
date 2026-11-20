@@ -1,5 +1,18 @@
 // Courses (all roles) + subjects (admin). Teachers manage only their own courses.
 import { sb, state, $, esc, toast, fail, confirmDialog, subjectArt } from './core.js';
+
+async function uploadHomepageCardImage(file) {
+  if (!file) return '';
+  const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+  if (!allowed.includes(file.type)) throw new Error('Choose a JPG, PNG or WEBP image.');
+  if (file.size > 2 * 1024 * 1024) throw new Error('Image must be 2 MB or smaller.');
+  const ext = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1];
+  const path = `homepage/${crypto.randomUUID()}.${ext}`;
+  const { error } = await sb.storage.from('lecture-thumbnails').upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type });
+  if (error) throw error;
+  const { data } = sb.storage.from('lecture-thumbnails').getPublicUrl(path);
+  return data.publicUrl;
+}
 import { empty, actions, loading } from './ui.js';
 import { getSubjects } from './data.js?v=20261120-homepage-cards';
 import { subjectField } from './data.js';
@@ -50,14 +63,16 @@ export async function coursesView(el) {
         <h3>Add homepage card</h3>
         <label>Subject / card title<input name="name" required maxlength="60" placeholder="e.g. Biology"></label>
         <label>Short description<input name="description" maxlength="160" placeholder="e.g. Human anatomy and physiology"></label>
-        <label>Image URL <small>(optional, paste a public image link)</small><input name="image_url" type="url" placeholder="https://..."></label>
+        <label>Upload card image from gallery <small>(optional · JPG, PNG or WEBP · max 2 MB)</small><input name="card_image" type="file" accept="image/jpeg,image/png,image/webp,image/*"></label>
         <label>Homepage position <input name="homepage_order" type="number" value="0" min="0" step="1"></label>
         <button class="btn btn-primary" type="submit">Add card</button>
       </form>`;
     $('#subForm', el).addEventListener('submit', async e => {
-      e.preventDefault(); const f = Object.fromEntries(new FormData(e.currentTarget)); const name=String(f.name||'').trim(); if (!name) return;
-      const image=String(f.image_url||'').trim(); if(image && !/^https:\/\//i.test(image)) return toast('Image URL must start with https://','bad');
-      const { error } = await sb.from('subjects').insert({ name, description:String(f.description||'').trim(), image_url:image, homepage_order:Number(f.homepage_order)||0, homepage_visible:true, created_by:me });
+      e.preventDefault(); const form=e.currentTarget; const f=new FormData(form); const name=String(f.get('name')||'').trim(); if (!name) return;
+      const file=form.elements.card_image.files?.[0]; let image='';
+      try { if(file){ toast('Uploading card image…'); image=await uploadHomepageCardImage(file); } }
+      catch(err){ return fail(err); }
+      const { error } = await sb.from('subjects').insert({ name, description:String(f.get('description')||'').trim(), image_url:image, homepage_order:Number(f.get('homepage_order'))||0, homepage_visible:true, created_by:me });
       if (error) return fail(error, /duplicate/i.test(error.message) ? 'That subject already exists.' : undefined); toast('Homepage card added.', 'good'); await load();
     });
   }
@@ -75,11 +90,16 @@ export async function coursesView(el) {
       const s=subjects.find(x=>x.id===id);
       const name=prompt('Card title:',s.name); if(name===null)return;
       const description=prompt('Short description:',s.description||''); if(description===null)return;
-      const image_url=prompt('Public image URL (leave blank for default subject image):',s.image_url||''); if(image_url===null)return;
       const order=prompt('Homepage position (0 appears first):',String(s.homepage_order||0)); if(order===null)return;
-      if(image_url.trim() && !/^https:\/\//i.test(image_url.trim()))return toast('Image URL must start with https://','bad');
-      const {error}=await sb.from('subjects').update({name:name.trim(),description:description.trim(),image_url:image_url.trim(),homepage_order:Number(order)||0}).eq('id',id);
-      if(error)return fail(error); toast('Homepage card customized.','good'); await load();
+      const picker=document.createElement('input'); picker.type='file'; picker.accept='image/jpeg,image/png,image/webp,image/*';
+      picker.onchange=async()=>{
+        let image_url=s.image_url||'';
+        try { if(picker.files?.[0]) { toast('Uploading new card image…'); image_url=await uploadHomepageCardImage(picker.files[0]); } }
+        catch(err){ return fail(err); }
+        const {error}=await sb.from('subjects').update({name:name.trim(),description:description.trim(),image_url,homepage_order:Number(order)||0}).eq('id',id);
+        if(error)return fail(error); toast('Homepage card customized.','good'); await load();
+      };
+      picker.click();
     },
     homeToggle: async ({ id }) => { const s=subjects.find(x=>x.id===id); const {error}=await sb.from('subjects').update({homepage_visible:!s.homepage_visible}).eq('id',id); if(error)return fail(error); toast(s.homepage_visible?'Card hidden from homepage.':'Card shown on homepage.','good'); await load(); },
     subToggle: async ({ id }) => { const s = subjects.find(x => x.id === id); const { error } = await sb.from('subjects').update({ is_active: !s.is_active }).eq('id', id); if (error) return fail(error); await load(); },
