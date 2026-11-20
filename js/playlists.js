@@ -132,6 +132,10 @@ export async function playlistsView(el) {
         <div class="actions"><button class="btn btn-primary btn-sm" type="button" data-act="watchPlaylistVideo" data-id="${esc(v.id)}">Watch</button>
         ${staff && own ? `<button class="btn btn-outline-danger btn-sm" type="button" data-act="removePlaylistVideo" data-id="${esc(v.id)}">Remove</button>` : ''}</div>
       </article>`).join('')}</div>` : empty('No videos have been added to this playlist yet.')}</section>`;
+    const existingForm = $('#existingLectureForm', el);
+    if (existingForm) existingForm.addEventListener('submit', addExisting);
+    const newForm = $('#newPlaylistVideoForm', el);
+    if (newForm) newForm.addEventListener('submit', addNew);
   }
 
   function existingPanel() {
@@ -267,11 +271,6 @@ export async function playlistsView(el) {
       toast('Playlist deleted.', 'good');
       await loadPlaylists();
     }
-  });
-
-  el.addEventListener('submit', e => {
-    if (e.target.id === 'existingLectureForm') { e.preventDefault(); addExisting(e); }
-    if (e.target.id === 'newPlaylistVideoForm') { e.preventDefault(); addNew(e); }
   });
 
 }
