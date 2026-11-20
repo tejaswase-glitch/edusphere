@@ -13,7 +13,7 @@ async function upload(file,uid){
 }
 export async function playlistsView(el){
  const staff=state.profile.role!=='student',admin=state.profile.role==='admin',me=state.user.id;
- let courses=[],playlists=[],videos=[],selected=null,editing=null,videoEditing=null;
+ let courses=[],playlists=[],videos=[],existingLectures=[],selected=null,editing=null,videoEditing=null;
  courses=staff?await getCourses():[];
  el.innerHTML=`<h1>Course Playlists</h1><p class="page-sub">${staff?'Organize recorded lessons into playlists under your courses.':'Watch recorded lessons grouped by course.'}</p>
  ${staff?`<section class="card" id="plFormCard"></section>`:''}<section><div id="plList"></div><div id="plDetail"></div></section>`;
@@ -50,12 +50,19 @@ export async function playlistsView(el){
   selected=playlists.find(p=>p.id===id);if(!selected)return;
   const {data,error}=await sb.from('playlist_videos').select('*').eq('playlist_id',id).order('sort_order').order('created_at');
   if(error){fail(error);return;}videos=data||[];
+  existingLectures=[];
+  if(staff&&(admin||selected.created_by===me)){
+   let q=sb.from('recorded_lectures').select('id,title,subject,description,video_id,thumbnail_url,is_published,created_by').order('created_at',{ascending:false});
+   if(!admin)q=q.eq('created_by',me);
+   const found=await q;
+   if(found.error)fail(found.error);else existingLectures=found.data||[];
+  }
   drawDetail();
  }
  function drawDetail(){
   const own=admin||selected.created_by===me;
   $('#plDetail').innerHTML=`<section class="card" style="margin-top:18px"><h2>${esc(selected.title)}</h2><p class="page-sub">${esc(selected.description||'')}</p>
-  ${staff&&own?`<h3>${videoEditing?'Edit video':'Add a video to this playlist'}</h3><form id="vidForm" class="form">
+  ${staff&&own?`<div class="card" style="margin:14px 0;padding:14px"><h3>Add an existing recorded lecture</h3><p class="page-sub">Select a lecture already saved in Recorded Lectures. Its title, video and thumbnail will be reused.</p><div class="actions"><select id="existingLectureSelect" aria-label="Choose an existing lecture" style="flex:1;min-width:180px"><option value="">Choose an existing lecture</option>${existingLectures.filter(l=>!videos.some(v=>v.video_id===l.video_id)).map(l=>`<option value="${l.id}">${esc(l.title)}${l.subject?' · '+esc(l.subject):''}</option>`).join('')}</select><button class="btn btn-primary" type="button" data-act="addExisting">Add selected lecture</button></div>${existingLectures.filter(l=>!videos.some(v=>v.video_id===l.video_id)).length?'':'<small>There are no unused saved lectures available to add.</small>'}</div><h3>${videoEditing?'Edit video':'Add a video manually'}</h3><form id="vidForm" class="form">
    <label>Video title<input name="title" required maxlength="120" value="${esc(videoEditing?.title||'')}"></label>
    <label>YouTube link or video ID<input name="video" required value="${esc(videoEditing?.video_id||'')}" placeholder="YouTube link"></label>
    <label>Video thumbnail <small>Separate image for this video · JPG/PNG/WEBP · max 2 MB</small><input name="thumb" type="file" accept="image/jpeg,image/png,image/webp" ${videoEditing?"":"required"}></label>
@@ -64,6 +71,18 @@ export async function playlistsView(el){
    <div class="actions"><button class="btn btn-primary" type="submit">${videoEditing?'Save video':'Add video'}</button>${videoEditing?'<button class="btn btn-soft" type="button" data-act="cancelVideo">Cancel</button>':''}</div></form>`:''}
   <div class="playlist-videos" style="margin-top:16px">${videos.length?videos.filter(v=>staff||v.is_published).map((v,i)=>`<article class="playlist-video"><img src="${esc(v.thumbnail_url||'https://i.ytimg.com/vi/'+v.video_id+'/hqdefault.jpg')}" alt=""><div><b>${esc(v.title)}</b><small>${v.is_published?'Published':'Draft'}</small><div class="actions"><button class="btn btn-primary btn-sm" data-act="watchVideo" data-id="${v.id}">Watch</button>${staff&&own?`<button class="btn btn-soft btn-sm" data-act="editVideo" data-id="${v.id}">Edit</button><button class="btn btn-outline-danger btn-sm" data-act="delVideo" data-id="${v.id}">Delete</button>`:''}</div></div></article>`).join(''):empty('No videos in this playlist yet.')}</div></section>`;
   const vf=$('#vidForm');if(vf)vf.onsubmit=saveVideo;
+ }
+ async function addExistingLecture(){
+  const id=$('#existingLectureSelect')?.value;
+  const lecture=existingLectures.find(l=>l.id===id);
+  if(!lecture)return toast('Choose a saved lecture first.','bad');
+  if(videos.some(v=>v.video_id===lecture.video_id))return toast('This lecture is already in the playlist.','bad');
+  try{
+   const {data,error}=await sb.from('playlist_videos').insert({playlist_id:selected.id,created_by:me,sort_order:videos.length,title:lecture.title,description:lecture.description||'',video_id:lecture.video_id,thumbnail_url:lecture.thumbnail_url||null,is_published:!!lecture.is_published}).select('id');
+   if(error)throw error;
+   if(!data?.length)throw new Error('You cannot add this lecture to the selected playlist.');
+   toast('Existing lecture added to playlist.','good');await open(selected.id);
+  }catch(err){fail(err);}
  }
  async function saveVideo(e){
   e.preventDefault();const f=new FormData(e.currentTarget),id=ytId(f.get('video'));if(!id)return toast('Enter a valid YouTube link or video ID.','bad');
@@ -79,6 +98,7 @@ export async function playlistsView(el){
  if(staff)form();await load();
  actions(el,{
   cancel:()=>{editing=null;form();},
+  addExisting:()=>addExistingLecture(),
   cancelVideo:()=>{videoEditing=null;drawDetail();},
   open:({id})=>open(id),
   edit:({id})=>{editing=playlists.find(x=>x.id===id);form();el.scrollIntoView({behavior:'smooth'});},
