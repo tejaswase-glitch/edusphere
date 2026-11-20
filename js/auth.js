@@ -123,7 +123,7 @@ export function initAuth() {
   });
 
   $('#registerForm').addEventListener('submit', async e => {
-    e.preventDefault(); if (!ready()) return;
+    e.preventDefault(); if (!await ready()) return;
     const form = e.currentTarget; showMsg('#regMsg', '');
     if (!form.reportValidity()) return;
     const f = new FormData(form), btn = e.submitter; btn.disabled = true;
@@ -145,7 +145,7 @@ export function initAuth() {
   });
 
   $('#recoverForm').addEventListener('submit', async e => {
-    e.preventDefault(); const f = new FormData(e.currentTarget);
+    e.preventDefault(); if (!await ready()) return; const f = new FormData(e.currentTarget);
     const p1 = String(f.get('password')), p2 = String(f.get('password2'));
     if (p1.length < 8) return showMsg('#recMsg', 'Use at least 8 characters.');
     if (p1 !== p2) return showMsg('#recMsg', 'The two passwords do not match.');
