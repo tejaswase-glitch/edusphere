@@ -1,5 +1,5 @@
 // Entry point: public site behaviour + wiring.
-import { cfg, sb, sdkReady, $, $, esc, toast, openModal } from './core.js';
+import { cfg, sb, sdkReady, $, $$, esc, toast, openModal } from './core.js';
 import { initAuth, openLogin, openRegister, logout } from './auth.js';
 import { initPortal } from './portal.js?v=20261120-demo-contact-playlists';
 
