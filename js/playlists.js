@@ -76,12 +76,11 @@ export async function playlistsView(el) {
     if (error) { $('#playlistList', el).innerHTML = `<div class="note warn">${esc(error.message)}</div>`; return; }
     playlists = data || [];
     $('#playlistList', el).innerHTML = playlists.length
-      ? `<div class="course-grid">${playlists.map(p => `<article class="course-card">
+      ? `<div class="course-grid">${playlists.map(p => `<article class="course-card" data-act="openPlaylist" data-id="${esc(p.id)}" style="cursor:pointer">
           <img src="${esc(p.thumbnail_url || subjectArt(p.courses?.title))}" alt="" loading="lazy">
           <div><h3>${esc(p.title)}</h3><p>${esc(p.courses?.title || 'Course')}</p>
             <p>${esc(p.description || '')}</p>
-            <div class="actions"><button class="btn btn-primary btn-sm" type="button" data-act="openPlaylist" data-id="${esc(p.id)}">Open playlist</button>
-            ${staff && (admin || p.created_by === me) ? `<button class="btn btn-outline-danger btn-sm" type="button" data-act="deletePlaylist" data-id="${esc(p.id)}">Delete</button>` : ''}
+            <div class="actions">${staff && (admin || p.created_by === me) ? `<button class="btn btn-outline-danger btn-sm" type="button" data-act="deletePlaylist" data-id="${esc(p.id)}">Delete</button>` : '<span class="fine">Tap to open playlist →</span>'}
             </div></div></article>`).join('')}</div>`
       : empty('No playlists have been created yet.');
   }
@@ -99,10 +98,11 @@ export async function playlistsView(el) {
   }
 
   async function loadExistingLectures() {
-    let q = sb.from('recorded_lectures')
+    // RLS already limits teachers to their own lectures plus published lectures;
+    // admins can see all. Do not add a client-side owner filter here.
+    const q = sb.from('recorded_lectures')
       .select('id,title,subject,description,video_id,thumbnail_url,is_published,created_by,created_at')
       .order('created_at', {ascending:false});
-    if (!admin) q = q.eq('created_by', me);
     const { data, error } = await q;
     if (error) throw error;
     existingLectures = (data || []).filter(l => !videos.some(v => v.video_id === l.video_id));
@@ -163,15 +163,17 @@ export async function playlistsView(el) {
     const lecture = existingLectures.find(l => l.id === id);
     if (!lecture) return toast('Choose an existing recorded lecture.', 'bad');
     if (videos.some(v => v.video_id === lecture.video_id)) return toast('This video is already in the playlist.', 'bad');
-    const { data, error } = await sb.from('playlist_videos').insert({
-      playlist_id: selected.id, created_by: me, sort_order: videos.length,
-      title: lecture.title, description: lecture.description || '', video_id: lecture.video_id,
-      thumbnail_url: lecture.thumbnail_url || null, is_published: !!lecture.is_published
-    }).select('id');
-    if (error) return fail(error);
-    if (!data?.length) return toast('You are not allowed to add this lecture to the playlist.', 'bad');
-    toast('Existing Recorded Lecture added to playlist.', 'good');
-    await openPlaylist(selected.id);
+    try {
+      const { error } = await sb.from('playlist_videos').insert({
+        playlist_id: selected.id, created_by: me, sort_order: videos.length,
+        title: lecture.title, description: lecture.description || '', video_id: lecture.video_id,
+        thumbnail_url: lecture.thumbnail_url || null, is_published: !!lecture.is_published
+      });
+      if (error) throw error;
+      toast('Existing Recorded Lecture added to playlist.', 'good');
+      addMode = '';
+      await openPlaylist(selected.id);
+    } catch (err) { fail(err, 'Could not add this recorded lecture to the playlist.'); }
   }
 
   async function addNew(e) {
@@ -201,8 +203,15 @@ export async function playlistsView(el) {
     const v = videos.find(x => x.id === id);
     if (!v) return;
     openModal(`<h2 id="modalTitle">${esc(v.title)}</h2>
-      <div class="player"><iframe title="${esc(v.title)}" src="https://www.youtube-nocookie.com/embed/${esc(v.video_id)}?rel=0&modestbranding=1" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+      <div class="actions" style="justify-content:flex-end"><button class="btn btn-soft btn-sm" id="playlistExpand" type="button">⛶ Full screen</button></div>
+      <div class="player playlist-player"><iframe title="${esc(v.title)}" src="https://www.youtube-nocookie.com/embed/${esc(v.video_id)}?rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen webkitallowfullscreen mozallowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
       ${v.description ? `<p>${esc(v.description)}</p>` : ''}`, {xl:true});
+    const player = document.querySelector('#modalBody .playlist-player');
+    const expand = document.querySelector('#playlistExpand');
+    expand?.addEventListener('click', () => {
+      const full = player.classList.toggle('playlist-player-fullscreen');
+      expand.textContent = full ? '✕ Exit full screen' : '⛶ Full screen';
+    });
   }
 
   await loadPlaylists();
