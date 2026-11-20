@@ -1,5 +1,5 @@
 // Authentication: login, student registration, password recovery, session restore + status re-check.
-import { sb, configured, sdkError, state, $, $$, toast, fail } from './core.js';
+import { sb, configured, sdkError, sdkReady, state, $, $, toast, fail } from './core.js';
 import { mountPortal, unmountPortal } from './portal.js';
 
 let selectedRole = 'student';
@@ -7,7 +7,8 @@ let revalTimer = null;
 const REVALIDATE_MS = 5 * 60 * 1000;
 
 const showMsg = (id, text, ok = false) => { const el = $(id); el.textContent = text; el.className = 'form-msg' + (ok ? ' ok' : ''); el.hidden = !text; };
-const ready = () => {
+const ready = async () => {
+  await sdkReady;
   if (sb) return true;
   toast(sdkError ? 'Could not load the Supabase library. Check your internet connection.' : 'Add your Supabase anon key in config.js first.', 'bad');
   return false;
@@ -99,7 +100,7 @@ export function initAuth() {
   $$('#roleTabs button').forEach(b => b.addEventListener('click', () => setRole(b.dataset.role)));
 
   $('#loginForm').addEventListener('submit', async e => {
-    e.preventDefault(); if (!ready()) return;
+    e.preventDefault(); if (!await ready()) return;
     const f = new FormData(e.currentTarget), btn = e.submitter; showMsg('#loginMsg', '');
     const email = String(f.get('email')).trim(), password = String(f.get('password'));
     if (!email || !password) return showMsg('#loginMsg', 'Enter your email and password.');
@@ -114,7 +115,7 @@ export function initAuth() {
   });
 
   $('#forgotBtn').addEventListener('click', async () => {
-    if (!ready()) return;
+    if (!await ready()) return;
     const email = String($('#loginForm [name=email]').value).trim();
     if (!email) return showMsg('#loginMsg', 'Type your email above, then press "Forgot password?" again.');
     const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
@@ -155,20 +156,22 @@ export function initAuth() {
     toast('Password saved. Please sign in.', 'good'); openLogin();
   });
 
-  if (!sb) return;
-  sb.auth.onAuthStateChange(ev => {
+  sdkReady.then(client => {
+    if (!client) return;
+    sb.auth.onAuthStateChange(ev => {
     if (ev === 'PASSWORD_RECOVERY') { setTimeout(() => { $('#loginDlg').close?.(); $('#recoverDlg').showModal(); }, 0); }
     if (ev === 'SIGNED_OUT' && state.profile) leave();
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) revalidate(); });
 
   // Restore a saved session after the browser was closed and re-opened, then re-check status.
-  (async () => {
+    (async () => {
     if (/type=recovery/.test(location.hash)) return; // handled by PASSWORD_RECOVERY
     const { data } = await sb.auth.getSession();
     if (data?.session) {
       const ok = await enter(data.session.user, { quiet: true });
       if (!ok) { /* message already shown */ }
     }
-  })();
+    })();
+  });
 }
