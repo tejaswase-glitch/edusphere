@@ -429,3 +429,10 @@ html.edusphere-app #app {
   width: 100% !important;
   height: 100% !important;
 }
+
+#playlistExpand.playlist-expand-fixed {
+  position: fixed !important;
+  top: 12px !important;
+  right: 12px !important;
+  z-index: 10002 !important;
+}
