@@ -210,6 +210,7 @@ export async function playlistsView(el) {
     const expand = document.querySelector('#playlistExpand');
     expand?.addEventListener('click', () => {
       const full = player.classList.toggle('playlist-player-fullscreen');
+      expand.classList.toggle('playlist-expand-fixed', full);
       expand.textContent = full ? '✕ Exit full screen' : '⛶ Full screen';
     });
   }
