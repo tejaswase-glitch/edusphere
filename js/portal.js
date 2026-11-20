@@ -5,7 +5,7 @@ import { studentDashboard, profileView } from './student.js';
 import { adminDashboard, teacherDashboard, studentsView, teachersView, adminsView, auditView, homepageDemosView, siteSettingsView } from './admin.js?v=20261119-second-admin';
 import { coursesView } from './courses.js?v=20261120-gallery-upload-2';
 import { lecturesView } from './lectures.js';
-import { playlistsView } from './playlists.js';
+import { playlistsView } from './playlists.js?v=20261120-playlist-ui';
 import { materialsView } from './materials.js';
 import { classesView } from './classes.js?v=20261119-classroom-record';
 import { recorderView, stopRecording, isRecording } from './recorder.js';
