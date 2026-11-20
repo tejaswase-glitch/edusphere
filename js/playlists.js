@@ -221,8 +221,13 @@ export async function playlistsView(el) {
     closePlaylist: () => { selected = null; videos = []; $('#playlistDetail', el).innerHTML = ''; },
     showAddOptions: () => { addMode = 'options'; drawDetail(); },
     chooseExisting: async () => {
-      try { await loadExistingLectures(); addMode = 'existing'; drawDetail(); }
-      catch (err) { fail(err); }
+      addMode = 'existing'; existingLectures = []; drawDetail();
+      const panel = $('#playlistDetail', el);
+      const hint = document.createElement('p'); hint.className = 'page-sub'; hint.textContent = 'Loading available recorded lectures…';
+      const form = panel.querySelector('#existingLectureForm');
+      if (form) form.before(hint);
+      try { await loadExistingLectures(); drawDetail(); }
+      catch (err) { hint.textContent = err?.message || 'Could not load recorded lectures.'; hint.className = 'note warn'; }
     },
     chooseNew: () => { addMode = 'new'; drawDetail(); },
     cancelAdd: () => { addMode = ''; drawDetail(); },
