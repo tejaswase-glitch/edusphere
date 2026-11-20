@@ -172,7 +172,8 @@ let recordingFinalized = false;
 function finishRecording() {
   if (recordingFinalized) return;
   recordingFinalized = true;
-  const mime = recorder?.mimeType || 'video/webm';
+  const mime = (recorder?.mimeType || 'video/webm').split(';')[0].toLowerCase();
+  const extension = mime === 'video/mp4' ? 'mp4' : 'webm';
   const blob = new Blob(chunks, {type:mime});
   $('#recordStart').disabled = false;
   $('#recordStart').textContent = '● Start Recording';
@@ -200,12 +201,12 @@ function finishRecording() {
   downloadButton.textContent = '⬇  DOWNLOAD LECTURE VIDEO';
   downloadButton.style.cssText = 'display:block;position:relative;z-index:1;pointer-events:auto;width:100%;min-height:60px;margin:14px 0 0;padding:16px 12px;border:0;border-radius:12px;background:#a8edc0;color:#123d25;font-size:17px;font-weight:900;touch-action:manipulation;cursor:pointer';
   downloadButton.addEventListener('click', async () => {
-    const fileName = 'edusphere-lecture-' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.webm';
+    const fileName = 'EduSphere-Lecture-' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.' + extension;
     downloadButton.disabled = true;
     downloadButton.textContent = 'PREPARING VIDEO…';
     try {
       if (window.EduSphereNative && typeof window.EduSphereNative.beginRecordingSave === 'function') {
-        window.EduSphereNative.beginRecordingSave(blob.type || 'video/webm');
+        window.EduSphereNative.beginRecordingSave(blob.type || mime);
         const buffer = await blob.arrayBuffer();
         const bytes = new Uint8Array(buffer);
         const chunkSize = 48 * 1024;
@@ -328,7 +329,7 @@ async function startRecording() {
     const output=new MediaStream([canvasVideoTrack,...micStream.getAudioTracks()]);
     if(output.getVideoTracks().length!==1 || output.getAudioTracks().length!==1) throw new Error('The recording stream is incomplete. Check camera and microphone permissions.');
     chunks=[];
-    const mimeCandidates=['video/webm;codecs=vp8,opus','video/webm;codecs=vp9,opus','video/webm'];
+    const mimeCandidates=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp8,opus','video/webm;codecs=vp9,opus','video/webm'];
     const supportedMimes=mimeCandidates.filter(t=>MediaRecorder.isTypeSupported(t));
     const recorderOptions=[...supportedMimes.map(mimeType=>({mimeType,videoBitsPerSecond:4500000,audioBitsPerSecond:160000})),{videoBitsPerSecond:4500000,audioBitsPerSecond:160000},{}];
     let startError=null;
