@@ -240,5 +240,4 @@ export async function playlistsView(el) {
     if (e.target.id === 'newPlaylistVideoForm') { e.preventDefault(); addNew(e); }
   });
 
-  await loadPlaylists();
 }
