@@ -132,6 +132,8 @@ export async function playlistsView(el) {
         <div class="actions"><button class="btn btn-primary btn-sm" type="button" data-act="watchPlaylistVideo" data-id="${esc(v.id)}">Watch</button>
         ${staff && own ? `<button class="btn btn-outline-danger btn-sm" type="button" data-act="removePlaylistVideo" data-id="${esc(v.id)}">Remove</button>` : ''}</div>
       </article>`).join('')}</div>` : empty('No videos have been added to this playlist yet.')}</section>`;
+    const existingAddButton = $('[data-act="addExistingVideo"]', el);
+    if (existingAddButton) existingAddButton.addEventListener('click', () => addExistingById(existingAddButton));
     const newForm = $('#newPlaylistVideoForm', el);
     if (newForm) newForm.addEventListener('submit', addNew);
   }
@@ -255,7 +257,6 @@ export async function playlistsView(el) {
       try { await loadExistingLectures(); drawDetail(); }
       catch (err) { hint.textContent = err?.message || 'Could not load recorded lectures.'; hint.className = 'note warn'; }
     },
-    addExistingVideo: (_, button) => addExistingById(button),
     chooseNew: () => { addMode = 'new'; drawDetail(); },
     cancelAdd: () => { addMode = ''; drawDetail(); },
     watchPlaylistVideo: ({id}) => watchVideo(id),
