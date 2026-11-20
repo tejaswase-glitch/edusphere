@@ -23,7 +23,7 @@ export async function playlistsView(el){
    <label>Playlist title<input name="title" required maxlength="120" value="${esc(p.title||'')}"></label>
    <label>Course<select name="course_id" required><option value="">Choose course</option>${courses.filter(c=>c.is_active||c.id===p.course_id).map(c=>`<option value="${c.id}" ${c.id===p.course_id?'selected':''}>${esc(c.title)}</option>`).join('')}</select></label>
    <label>Description<textarea name="description" maxlength="600">${esc(p.description||'')}</textarea></label>
-   <label>Playlist thumbnail <small>JPG/PNG/WEBP, max 2 MB</small><input name="thumb" type="file" accept="image/jpeg,image/png,image/webp"></label>
+   <label>Playlist thumbnail <small>JPG/PNG/WEBP, max 2 MB</small><input name="thumb" type="file" accept="image/jpeg,image/png,image/webp" ${editing?"":"required"}></label>
    <label class="check"><input name="publish" type="checkbox" ${p.is_published?'checked':''}> Publish playlist to approved students</label>
    <div class="actions"><button class="btn btn-primary" type="submit"> ${editing?'Save playlist':'Create playlist'}</button>${editing?'<button class="btn btn-soft" type="button" data-act="cancel">Cancel</button>':''}</div></form>`;
   $('#plForm').onsubmit=savePlaylist;
@@ -31,7 +31,7 @@ export async function playlistsView(el){
  async function savePlaylist(e){
   e.preventDefault();const f=new FormData(e.currentTarget),btn=e.submitter;btn.disabled=true;
   try{
-   const thumb=await upload(e.currentTarget.elements.thumb.files[0],me);
+   const file=e.currentTarget.elements.thumb.files[0];if(!editing&&!file)throw new Error('Please choose a playlist thumbnail.');const thumb=await upload(file,me);
    const row={title:String(f.get('title')).trim(),course_id:f.get('course_id'),description:String(f.get('description')||'').trim(),is_published:!!f.get('publish'),...(thumb?{thumbnail_url:thumb}:{})};
    const res=editing?await sb.from('course_playlists').update(row).eq('id',editing.id).select('id'):await sb.from('course_playlists').insert({...row,created_by:me}).select('id');
    if(res.error)throw res.error;if(!res.data?.length)throw new Error('You cannot manage this playlist or selected course.');
@@ -58,7 +58,7 @@ export async function playlistsView(el){
   ${staff&&own?`<h3>${videoEditing?'Edit video':'Add a video to this playlist'}</h3><form id="vidForm" class="form">
    <label>Video title<input name="title" required maxlength="120" value="${esc(videoEditing?.title||'')}"></label>
    <label>YouTube link or video ID<input name="video" required value="${esc(videoEditing?.video_id||'')}" placeholder="YouTube link"></label>
-   <label>Video thumbnail <small>Separate image for this video · JPG/PNG/WEBP · max 2 MB</small><input name="thumb" type="file" accept="image/jpeg,image/png,image/webp"></label>
+   <label>Video thumbnail <small>Separate image for this video · JPG/PNG/WEBP · max 2 MB</small><input name="thumb" type="file" accept="image/jpeg,image/png,image/webp" ${videoEditing?"":"required"}></label>
    <label>Description<textarea name="description" maxlength="600">${esc(videoEditing?.description||'')}</textarea></label>
    <label class="check"><input name="publish" type="checkbox" ${videoEditing?videoEditing.is_published?'checked':'':'checked'}> Publish this video</label>
    <div class="actions"><button class="btn btn-primary" type="submit">${videoEditing?'Save video':'Add video'}</button>${videoEditing?'<button class="btn btn-soft" type="button" data-act="cancelVideo">Cancel</button>':''}</div></form>`:''}
@@ -69,7 +69,7 @@ export async function playlistsView(el){
   e.preventDefault();const f=new FormData(e.currentTarget),id=ytId(f.get('video'));if(!id)return toast('Enter a valid YouTube link or video ID.','bad');
   const btn=e.submitter;btn.disabled=true;
   try{
-   const thumb=await upload(e.currentTarget.elements.thumb.files[0],me);
+   const file=e.currentTarget.elements.thumb.files[0];if(!videoEditing&&!file)throw new Error('Please choose a thumbnail for this video.');const thumb=await upload(file,me);
    const row={title:String(f.get('title')).trim(),video_id:id,description:String(f.get('description')||'').trim(),is_published:!!f.get('publish'),...(thumb?{thumbnail_url:thumb}:{})};
    const res=videoEditing?await sb.from('playlist_videos').update(row).eq('id',videoEditing.id).select('id'):await sb.from('playlist_videos').insert({...row,playlist_id:selected.id,created_by:me,sort_order:videos.length}).select('id');
    if(res.error)throw res.error;if(!res.data?.length)throw new Error('You cannot change this video.');
