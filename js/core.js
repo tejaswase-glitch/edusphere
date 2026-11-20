@@ -5,14 +5,22 @@ export const configured = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY
 
 export let sb = null;
 export let sdkError = null;
-if (configured) {
-  try {
-    const m = await import('https://esm.sh/@supabase/supabase-js@2.45.4');
-    sb = m.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'edusphere-auth' },
-    });
-  } catch (e) { sdkError = e; console.error('Could not load Supabase SDK', e); }
-}
+// Do not block the entire app while the remote Supabase SDK downloads.
+// The public navigation and dialog buttons can initialise immediately.
+export const sdkReady = configured
+  ? import('https://esm.sh/@supabase/supabase-js@2.45.4')
+      .then(m => {
+        sb = m.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+          auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'edusphere-auth' },
+        });
+        return sb;
+      })
+      .catch(e => {
+        sdkError = e;
+        console.error('Could not load Supabase SDK', e);
+        return null;
+      })
+  : Promise.resolve(null);
 
 export const state = { profile: null, user: null };
 
