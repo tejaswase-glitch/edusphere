@@ -3,7 +3,7 @@ import { sb, esc } from './core.js';
 import { options } from './ui.js';
 
 export async function getSubjects() {
-  const { data, error } = await sb.from('subjects').select('id,name,description,is_active').order('name');
+  const { data, error } = await sb.from('subjects').select('id,name,description,is_active,homepage_visible,homepage_order,image_url').order('homepage_order').order('name');
   if (error) return []; // table missing (migration not run) -> views fall back to free text
   return data;
 }
