@@ -2,7 +2,7 @@
 import { cfg, sb, $, $$, esc, toast } from './core.js';
 import { initAuth, openLogin, openRegister, logout } from './auth.js';
 import { initPortal } from './portal.js?v=20261119-login-shell-fix';
-import { getSubjects } from './data.js';
+import { getSubjects } from './data.js?v=20261120-homepage-cards';
 
 initPortal(); initAuth();
 
