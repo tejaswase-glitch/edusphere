@@ -162,7 +162,7 @@ export async function adminsView(el) {
   $('#adminAddForm', el).addEventListener('submit', async e => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.currentTarget));
-    if (!f.full_name.trim() || !/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(f.email.trim())) return toast('Enter a full name and valid email address.','bad');
+    if (!f.full_name.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.trim())) return toast('Enter a full name and valid email address.','bad');
     const btn = e.submitter; btn.disabled = true;
     try {
       const r = await adminFn({ action:'create_admin', full_name:f.full_name.trim(), email:f.email.trim(), redirectTo:location.origin + location.pathname });
