@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
       const email = clean(b.email, 200).toLowerCase();
       const full_name = clean(b.full_name, 100);
       if (!emailOk(email) || !full_name) return json({ error: 'Name and a valid email are required' }, 400);
-      const pw = crypto.randomUUID() + crypto.randomUUID() + 'Aa1!'; // random, never shown or stored by us
+      const pw = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '') + 'Aa1!'; // random, never shown or stored by us
       const { data, error } = await admin.auth.admin.createUser({
         email, password: pw, email_confirm: true, user_metadata: { full_name },
       });
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
       const email = clean(b.email, 200).toLowerCase();
       const full_name = clean(b.full_name, 100);
       if (!emailOk(email) || !full_name) return json({ error: 'Name and a valid email are required' }, 400);
-      const pw = crypto.randomUUID() + crypto.randomUUID() + 'Aa1!';
+      const pw = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '') + 'Aa1!';
       const { data, error } = await admin.auth.admin.createUser({
         email, password: pw, email_confirm: true, user_metadata: { full_name },
       });
